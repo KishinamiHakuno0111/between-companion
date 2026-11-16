@@ -16,7 +16,7 @@ await build({entryPoints:[resolve(root,'entry.js')],outfile:resolve(work,'app.cj
   define:{'import.meta.url':'__betweenModuleUrl','globalThis.BETWEEN_EMBEDDED':'true'},
   banner:{js:"const __betweenModuleUrl = require('node:url').pathToFileURL(__filename).href;"},
 });
-const assets=Object.fromEntries(['index.html','app.js','style.css'].map(name=>[`public/${name}`,resolve(root,'../public',name)]));
+const assets=Object.fromEntries(['index.html','app.js','chat-features.js','style.css'].map(name=>[`public/${name}`,resolve(root,'../public',name)]));
 const license=resolve(root,'licenses/node-LICENSE.txt');await readFile(license);assets['licenses/Node.txt']=license;
 const config={main:resolve(work,'app.cjs'),output:resolve(work,'app.blob'),disableExperimentalSEAWarning:true,useSnapshot:false,useCodeCache:false,assets};
 await writeFile(resolve(work,'sea-config.json'),JSON.stringify(config,null,2));
@@ -44,7 +44,7 @@ const icon=ResEdit.Data.IconFile.from(ico);
 const groups=ResEdit.Resource.IconGroupEntry.fromEntries(resources.entries);
 for(const group of groups)ResEdit.Resource.IconGroupEntry.replaceIconsForResource(resources.entries,group.id,group.lang,icon.icons.map(item=>item.data));
 for(const info of ResEdit.Resource.VersionInfo.fromEntries(resources.entries)){
-  info.setFileVersion(0,2,1,0,1033);info.setProductVersion(0,2,1,0,1033);
+  info.setFileVersion(0,3,0,0,1033);info.setProductVersion(0,3,0,0,1033);
   info.setStringValues({lang:1033,codepage:1200},{FileDescription:'此间 · 陪伴聊天',ProductName:'此间 Between',CompanyName:'Between',InternalName:'between',OriginalFilename:'此间.exe',LegalCopyright:'Between · Includes Node.js under its license'});
   info.outputToResourceEntries(resources.entries);
 }

@@ -45,11 +45,14 @@ try{
   const response=await fetch(location.origin+`/api/characters/${character.id}/chat`,{method:'POST',headers:{'X-Companion':'1'},body:JSON.stringify({content:'看看图片',attachmentIds:[attachment.id]})});
   const events=(await response.text()).trim().split('\n').map(JSON.parse);assert.equal(events.at(-1).type,'done',JSON.stringify(events));assert.ok(events.some(e=>e.type==='delta'&&e.text==='手机独立回复'));
   assert.ok(received[0].messages.at(-1).content.some(p=>p.type==='image_url'));
+  assert.match(received[0].messages[0].content,/当前设备时间/);
+  await call('/api/preferences','PUT',{webSearch:true,readUrl:true,thinking:false,voice:'tide'});
   await call(`/api/characters/${character.id}/memories`,'POST',{title:'生日',content:'9月12日',category:'个人信息'});
   await call(`/api/characters/${character.id}`,'PUT',{name:'已更新的手机角色'});
   assert.equal((await call(`/api/characters/${character.id}/messages`)).length,2,'更新角色不会级联删除聊天');
   assert.equal((await call(`/api/characters/${other.id}/memories`)).length,0);
   const restarted=createApp();const persisted=await(await restarted.server.dispatch('/api/state')).json();assert.equal(persisted.characters.length,2);assert.equal(persisted.settings.api.hasKey,true);assert.ok(!JSON.stringify(persisted).includes('test-mobile-only'));
+  assert.equal(persisted.settings.api.webSearch,true);assert.equal(persisted.settings.api.voice,'tide');
   const downloaded=await restarted.server.dispatch(`/api/characters/${character.id}/attachments/${attachment.id}`);assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()),png);
   console.log('PASS: Android runtime startup, SQLite bridge, model discovery, settings, role isolation, attachment round trip, SSE replies and restart persistence.');
 }finally{globalThis.fetch=nativeFetch;await new Promise(r=>upstream.close(r));db.close();}

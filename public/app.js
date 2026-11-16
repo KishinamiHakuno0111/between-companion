@@ -1,3 +1,4 @@
+import {citedText,replyExtras,startRecording} from './chat-features.js';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={attach:'M21 11l-8.5 8.5a6 6 0 0 1-8.5-8.5L13 2a4 4 0 0 1 5.7 5.7L10 16.4a2 2 0 0 1-2.8-2.8L15 5.8',chat:'M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z',book:'M12 7v14M3 3h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5v16h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3z',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M9 3l-1 2-3 1-2 4 1 2-1 2 2 4 3 1 1 2h6l1-2 3-1 2-4-1-2 1-2-2-4-3-1-1-2z',plus:'M12 5v14M5 12h14',search:'M21 21l-4.5-4.5M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15',chevron:'M9 5l7 7-7 7',back:'M15 5l-7 7 7 7',edit:'M12 20H4V12M16 3l5 5-10 10-6 1 1-6zM14 5l5 5',panel:'M3 4h18v16H3zM15 4v16',close:'M6 6l12 12M6 18L18 6',user:'M20 21v-2a7 7 0 0 0-14 0v2M13 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8',arrow:'M12 19V5M5 12l7-7 7 7',lock:'M5 10h14v11H5zM8 10V6a4 4 0 0 1 8 0v4',spark:'M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z',leaf:'M20 4C11 2 3 9 7 15s14 3 13-11zM4 21l10-11',heart:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z',trash:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',check:'M5 12l4 4L19 6',stop:'M6 6h12v12H6z',plug:'M8 3v5M16 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7v5l3 2'};
@@ -9,7 +10,7 @@ const avatar=(c,size='')=>`<div class="avatar ${esc(c.color||'plum')} ${size}" a
 let state={characters:[],settings:{api:{},player:{name:'我'}}}, activeId=null, messages=[], memories=[], detailTab='memory', sending=false, aborter=null, retryId=null, stats=null, saveHandler=null, modalBusy=false;
 const drafts=new Map();
 let pendingAttachments=[], uploading=false;
-let toastTimer;
+let toastTimer,recording=null,recordingBusy=false,recordingTimer=null,speech=null,speechController=null,speechURL=null,preferencesBusy=false;
 const active=()=>state.characters.find(c=>c.id===activeId);
 const effectivePlayer=()=>active()?.playerOverride ?? state.settings.player;
 function toast(message){clearTimeout(toastTimer);$('#toast').textContent=message;$('#toast').hidden=false;toastTimer=setTimeout(()=>$('#toast').hidden=true,5000);}
@@ -20,6 +21,7 @@ async function api(path,{method='GET',body}={}) {
 function characterPath(suffix=''){return `/api/characters/${encodeURIComponent(activeId)}${suffix}`;}
 async function refresh(){state=await api('/api/state');renderSidebar();}
 function renderSidebar(){
+  renderTools();
   const query=$('#searchCharacters').value.trim().toLowerCase();
   $('#characterCount').textContent=state.characters.length;
   const listHTML=state.characters.filter(c=>c.name.toLowerCase().includes(query)).map(c=>`<button class="character-item ${c.id===activeId?'active':''}" data-character="${esc(c.id)}" ${sending?'aria-disabled="true"':''} ${c.id===activeId?'aria-current="true"':''}>${avatar(c)}<div class="character-copy"><div class="character-top"><strong>${esc(c.name)}</strong><small>${c.memoryCount?`${c.memoryCount} 段记忆`:''}</small></div><p>${esc(c.lastMessage || c.tagline || '暂无消息')}</p></div></button>`).join('') || '<p class="helper">暂无角色</p>';
@@ -43,7 +45,7 @@ const timeLabel=value=>new Date(value).toLocaleTimeString('zh-CN',{hour:'2-digit
 function messageHTML(m){
   if(m.role==='notice')return `<div class="memory-event" data-message="${esc(m.id)}">${icon('leaf')}<button data-open-memory="1">${esc(m.content)}</button></div>`;
   const mine=m.role==='user',p=effectivePlayer(),c=active();
-  return `<div class="message-row ${mine?'user':'assistant'}" data-message="${esc(m.id)}">${mine?`<div class="user-letter">${p.avatar?`<img src="${esc(p.avatar)}" alt="">`:esc(initials(p.name))}</div>`:avatar(c,'small')}<div class="message-col"><div class="message-name">${esc(mine?p.name:c.name)}</div>${m.content?`<div class="bubble">${esc(m.content)}</div>`:''}${attachmentHTML(m)}<div class="message-time">${m.metadata?.greeting?'角色开场白 · ':''}${timeLabel(m.created_at)}</div></div></div>`;
+  return `<div class="message-row ${mine?'user':'assistant'}" data-message="${esc(m.id)}">${mine?`<div class="user-letter">${p.avatar?`<img src="${esc(p.avatar)}" alt="">`:esc(initials(p.name))}</div>`:avatar(c,'small')}<div class="message-col"><div class="message-name">${esc(mine?p.name:c.name)}</div>${m.content?`<div class="bubble">${citedText(m)}</div>`:''}${attachmentHTML(m)}${replyExtras(m)}<div class="message-time">${m.metadata?.greeting?'角色开场白 · ':''}${timeLabel(m.created_at)}</div></div></div>`;
 }
 function attachmentURL(a,characterId=activeId){return `/api/characters/${encodeURIComponent(characterId)}/attachments/${encodeURIComponent(a.id)}`;}
 const fileSize=bytes=>bytes>=1048576?`${(bytes/1048576).toFixed(1)} MB`:`${Math.max(1,Math.round(bytes/1024))} KB`;
@@ -137,7 +139,8 @@ function renderDetails(){
   }
 }
 async function selectCharacter(id){
-  if(sending)return;
+  if(sending||recordingBusy)return;
+  stopSpeech();
   if(activeId)drafts.set(activeId,$('#messageInput').value);
   $('#messageInput').value=drafts.get(id)||'';
   activeId=id;localStorage.setItem('between.active',id);stats=null;$('#chatAlert').hidden=true;renderSidebar();renderHeader();
@@ -255,7 +258,7 @@ async function contextModal(){
   openModal('上下文管理',`<div class="context-stat"><div><strong>${data.messageCount}</strong><small>保留的原始对话消息</small></div><div><strong>${stats?.estimatedTokens?.toLocaleString() || '—'}</strong><small>最近请求的保守估算 token</small></div></div><p class="form-note">每轮只注入一次角色人设、有效玩家人设和召回记忆。接近上下文预算时，较早对话会合并成摘要，最近对话保留原文；摘要已覆盖的原文不会重复发送。<br><br>摘要仅使用真实对话及上一版摘要，不读取人设或记忆库。文本按 UTF-8 字节数估算，图片及文档另行预留预算；文档解析后的长度可能超过估算，实际以服务商为准。</p><label class="field"><span>当前历史摘要</span><div class="summary-content">${esc(data.summary?.content || '暂无历史摘要。')}</div></label>`,()=>{},{label:'知道了',eyebrow:'BETWEEN · 上下文管理'});
 }
 async function send(retry=false){
-  if(sending||!activeId)return;
+  if(sending||recordingBusy||!activeId)return;
   if(uploading){toast('附件正在添加，请稍候。');return;}
   if(!state.settings.api.hasKey||!state.settings.api.model){apiModal();return;}
   if(retryId&&!retry){showAlert('请先完成上一条消息，再开始新的对话。',true);return;}
@@ -271,12 +274,13 @@ async function send(retry=false){
     }
     if(event.type==='compact')$('#generationStatus').textContent=event.phase==='start'?'正在把较早的对话整理成摘要…':'压缩完成，正在回复…';
     if(event.type==='context'){stats=event;$('#generationStatus').textContent=`${active().name}正在回复…`;}
+    if(event.type==='reasoning'){const row=$('#streamRow');if(row){let box=row.querySelector('.reasoning');if(!box){box=document.createElement('details');box.className='reasoning';box.innerHTML='<summary>思考过程</summary><div></div>';row.querySelector('.message-col').prepend(box);}box.querySelector('div').textContent+=event.text;}$('#generationStatus').textContent='正在思考…';}
     if(event.type==='delta'){streamText+=event.text;if(streamFrame===null)streamFrame=requestAnimationFrame(paintStream);}
     if(event.type==='reply'){
       flushStream();const follow=nearBottom();gotReply=true;retryId=null;messages.push(event.message);
       // Promote the live bubble to the saved message without removing it or its text.
       const row=$('#streamRow');
-      if(row){row.removeAttribute('id');row.dataset.message=event.message.id;if(streamBubble.textContent!==event.message.content)streamBubble.textContent=event.message.content;const time=document.createElement('div');time.className='message-time';time.textContent=timeLabel(event.message.created_at);row.querySelector('.message-col').append(time);messageMarkup.set(row,messageHTML(event.message));}
+      if(row){row.removeAttribute('id');row.dataset.message=event.message.id;if(streamBubble.textContent!==event.message.content)streamBubble.textContent=event.message.content;row.querySelector('.reasoning')?.remove();if(event.message.metadata?.citations?.length)streamBubble.innerHTML=citedText(event.message);row.querySelector('.message-col').insertAdjacentHTML('beforeend',replyExtras(event.message));const time=document.createElement('div');time.className='message-time';time.textContent=timeLabel(event.message.created_at);row.querySelector('.message-col').append(time);messageMarkup.set(row,messageHTML(event.message));}
       else renderMessages();
       streamBubble=null;if(follow)scrollBottom();
     }
@@ -287,7 +291,7 @@ async function send(retry=false){
     if(event.type==='done')gotDone=true;
   };
   try {
-    const response=await fetch(`/api/characters/${id}/chat`,{method:'POST',headers:{'Content-Type':'application/json','X-Companion':'1'},body:JSON.stringify(retry?{retryId}:{content,attachmentIds}),signal:aborter.signal});
+    const response=await fetch(`/api/characters/${id}/chat`,{method:'POST',headers:{'Content-Type':'application/json','X-Companion':'1'},body:JSON.stringify({...retry?{retryId}:{content,attachmentIds},timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}),signal:aborter.signal});
     if(!response.ok){const data=await response.json();throw new Error(data.error);}
     const reader=response.body.getReader(),decoder=new TextDecoder();
     while(true){const {value,done}=await reader.read();if(done){buffer+=decoder.decode();break;}buffer+=decoder.decode(value,{stream:true});let i;while((i=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,i);buffer=buffer.slice(i+1);if(line.trim())event(JSON.parse(line));}}
@@ -311,10 +315,69 @@ $('#navMemory').onclick=()=>showDetails('memory',true);$('#toggleDetails').oncli
 $('#closeDetails').onclick=()=>{setNavigation(false);$('#app').classList.remove('details-open');$('#app').classList.add('hide-details');};
 $('#tabMemory').onclick=()=>{detailTab='memory';renderDetails();};$('#tabPersona').onclick=()=>{detailTab='persona';renderDetails();};
 $('#navChats').onclick=$('#backToList').onclick=()=>{setNavigation(false);$('#app').classList.remove('mobile-chat','details-open');if(!active())$('#app').classList.add('hide-details');};
-$('#messages').onclick=e=>{if(e.target.closest('[data-open-memory]'))showDetails();};
+$('#messages').onclick=e=>{if(e.target.closest('[data-open-memory]'))showDetails();const copy=e.target.closest('[data-copy-reply]'),speak=e.target.closest('[data-speak-reply]');if(copy)navigator.clipboard.writeText(messages.find(m=>m.id===copy.dataset.copyReply)?.content||'').then(()=>toast('已复制'),()=>toast('复制失败，请长按文字复制'));if(speak)readReply(speak.dataset.speakReply);};
 $('#detailContent').onclick=e=>{const edit=e.target.closest('[data-edit-memory]'),del=e.target.closest('[data-delete-memory]');if(edit)memoryModal(memories.find(m=>m.id===edit.dataset.editMemory));if(del){const id=activeId,m=memories.find(m=>m.id===del.dataset.deleteMemory);confirmModal('删除这段记忆？',`「${m.title}」将从记忆库删除。历史对话及其摘要仍会保留。`,async()=>{await api(`/api/characters/${id}/memories/${m.id}`,{method:'DELETE'});memories=await api(`/api/characters/${id}/memories`);await refresh();renderDetails();toast('记忆已删除');});}};
 $('#contextStatus').onclick=()=>contextModal().catch(e=>toast(e.message));
 $('#sendMessage').onclick=()=>sending?aborter?.abort():send();
 $('#messageInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();send();}};
+function initTools(){
+  const bar=document.createElement('div');bar.className='chat-tools';bar.id='chatTools';
+  bar.innerHTML='<button type="button" id="webToggle" aria-pressed="false">联网搜索</button><button type="button" id="thinkingToggle" aria-pressed="false">深度思考</button><button type="button" id="voiceInput">语音输入</button><button type="button" id="toolSettings" aria-label="聊天工具设置">工具设置</button><button type="button" id="stopSpeech" hidden>停止朗读</button>';
+  $('.composer').prepend(bar);
+  $('#webToggle').onclick=()=>savePreference({webSearch:!state.settings.api.webSearch});
+  $('#thinkingToggle').onclick=()=>savePreference({thinking:state.settings.api.thinking===false});
+  $('#toolSettings').onclick=()=>{
+    const a=state.settings.api;
+    openModal('聊天工具',`<label class="check-field"><input name="readUrl" type="checkbox" ${a.readUrl?'checked':''}><span>阅读消息中的链接</span></label><label class="field"><span>思考强度</span><select name="thinkingEffort">${[['low','轻度'],['high','标准'],['max','深入']].map(([v,t])=>`<option value="${v}" ${a.thinkingEffort===v?'selected':''}>${t}</option>`).join('')}</select></label><label class="field"><span>朗读音色</span><select name="voice"><option value="stella" ${a.voice!=='tide'?'selected':''}>海星 · 女声</option><option value="tide" ${a.voice==='tide'?'selected':''}>暗潮 · 男声</option></select></label><p class="helper">联网与阅读链接需使用 DeepSeek 官方 deepseek-flash。搜索、网页阅读和语音按服务商用量计费。录音会上传 DeepSeek 转成文字，检查后再发送。</p>`,async f=>{state=await api('/api/preferences',{method:'PUT',body:{readUrl:f.has('readUrl'),thinkingEffort:f.get('thinkingEffort'),voice:f.get('voice')}});renderTools();});
+  };
+  $('#voiceInput').onclick=toggleRecording;$('#stopSpeech').onclick=stopSpeech;
+  window.addEventListener('pagehide',()=>{recording?.stop();stopSpeech();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&recording)toggleRecording();});
+}
+function renderTools(){
+  if(!$('#chatTools'))return;const a=state.settings.api,deep=a.provider==='deepseek',web=deep&&a.model==='deepseek-flash';
+  $('#webToggle').setAttribute('aria-pressed',String(web&&Boolean(a.webSearch)));$('#thinkingToggle').setAttribute('aria-pressed',String(deep&&a.thinking!==false));
+  $('#webToggle').disabled=!web||sending||preferencesBusy;$('#webToggle').title=web?'搜索与抓取按服务商用量计费':'联网搜索需要 DeepSeek 官方 deepseek-flash';
+  $('#thinkingToggle').disabled=!deep||sending||preferencesBusy;
+  $('#voiceInput').disabled=!deep||!a.hasKey||sending||recordingBusy&&!recording;$('#toolSettings').disabled=!deep||sending||recordingBusy;
+  document.body.classList.toggle('speech-available',deep&&Boolean(a.hasKey));
+}
+async function savePreference(value){
+  if(preferencesBusy||sending)return;preferencesBusy=true;renderTools();
+  try{state=await api('/api/preferences',{method:'PUT',body:value});}catch(e){toast(e.message);}finally{preferencesBusy=false;renderTools();}
+}
+async function toggleRecording(){
+  if(recording){
+    const take=recording;recording=null;clearTimeout(recordingTimer);$('#voiceInput').textContent='正在转文字…';renderTools();
+    try{
+      const blob=await take.stop();if(!blob)return;
+      const response=await fetch('/api/transcribe',{method:'POST',headers:{'X-Companion':'1','Content-Type':'audio/wav'},body:blob});const data=await response.json();if(!response.ok)throw new Error(data.error);
+      const input=$('#messageInput'),value=(input.value?input.value+'\n':'')+data.text;
+      if(value.length>12000){openModal('语音转写结果',field('输入框内容过长，请复制需要的部分','transcription',data.text,{type:'textarea',max:12000}),()=>{},{label:'知道了'});return;}
+      input.value=value;input.focus();toast('已转成文字，检查后点击发送');
+    }catch(e){toast(e.message);}finally{recordingBusy=false;$('#voiceInput').textContent='语音输入';renderTools();}
+    return;
+  }
+  if(recordingBusy||sending)return;if(!activeId){toast('请先选择一个角色');return;}
+  recordingBusy=true;renderTools();stopSpeech();
+  try{recording=await startRecording();$('#voiceInput').textContent='结束录音';toast('正在录音，点击结束后转文字（最长 120 秒）');recordingTimer=setTimeout(()=>toggleRecording(),119000);}
+  catch(e){recordingBusy=false;toast(e.name==='NotAllowedError'?'未获得麦克风权限，请在系统或浏览器设置中允许录音。':e.message);}renderTools();
+}
+function stopSpeech(){speechController?.abort();speechController=null;if(speech){speech.pause();speech.dispatchEvent(new Event('ended'));speech=null;}if(speechURL){URL.revokeObjectURL(speechURL);speechURL=null;}if($('#stopSpeech'))$('#stopSpeech').hidden=true;}
+async function readReply(messageId){
+  stopSpeech();const controller=new AbortController();speechController=controller;$('#stopSpeech').hidden=false;
+  const id=activeId;
+  try{
+    for(let index=0,total=1;index<total;index++){
+      const response=await fetch(`/api/characters/${encodeURIComponent(id)}/speech/${encodeURIComponent(messageId)}`,{method:'POST',headers:{'Content-Type':'application/json','X-Companion':'1'},body:JSON.stringify({index}),signal:controller.signal});
+      if(!response.ok)throw new Error((await response.json()).error);total=Number(response.headers.get('X-Audio-Chunks'))||1;
+      const blob=await response.blob();if(controller.signal.aborted)return;
+      speechURL=URL.createObjectURL(blob);speech=new Audio(speechURL);const player=speech;
+      await new Promise((resolve,reject)=>{player.onended=resolve;player.onerror=()=>reject(new Error('音频播放失败，请重试。'));player.play().catch(reject);});
+      if(controller.signal.aborted)return;URL.revokeObjectURL(speechURL);speechURL=null;speech=null;
+    }
+  }catch(e){if(e.name!=='AbortError')toast(e.message);}finally{if(speechController===controller)stopSpeech();}
+}
 async function boot(){try{await refresh();const saved=localStorage.getItem('between.active');const id=state.characters.some(c=>c.id===saved)?saved:state.characters[0]?.id;if(id)await selectCharacter(id);else renderEmpty();}catch(e){showAlert(`无法连接本地服务：${e.message}`);}}
+initTools();
 boot();

@@ -1,3 +1,4 @@
+import {hasWebTools, responseSources} from './capabilities.js';
 export function completionUrl(baseUrl) {
   const url=new URL(baseUrl);
   if (!['https:','http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写不含账号、查询参数的 HTTP(S) API 地址。');
@@ -49,15 +50,29 @@ export function provider(api, signal) {
     if(!api.apiKey || !api.model) throw new Error('请先在 API 设置中填写密钥和模型名称。');
     const model=api.models?.find(m=>m.id===api.model);
     if(maxTokens == null && api.provider==='deepseek')maxTokens=model?.maxOutputTokens || 393216;
-    const wire=messages.map(m=>({...m,content:Array.isArray(m.content)?m.content.map(({_estimatedTokens,...part})=>part):m.content}));
+    const wire=messages.map(({_provider,...m})=>{
+      const content=Array.isArray(m.content)?m.content.map(({_estimatedTokens,...part})=>part):m.content;
+      const compatible=stream && api.provider==='deepseek' && _provider?.model===api.model && _provider?.baseUrl===api.baseUrl;
+      return {...m,content,...(stream&&api.provider==='deepseek'&&m.role==='assistant'?{reasoning_content:compatible?_provider.reasoning_content||'':''}:{}),...(compatible&&_provider.server_tool_calls?.length?{server_tool_calls:_provider.server_tool_calls}:{})};
+    });
     const payload={model:api.model,messages:wire,stream};
     if(maxTokens != null)payload.max_tokens=maxTokens;
     // Background extraction/summary tasks should not consume their small budget on hidden reasoning.
     if(api.provider==='deepseek' && !stream)payload.thinking={type:'disabled'};
+    if(api.provider==='deepseek' && stream) {
+      payload.thinking={type:api.thinking===false?'disabled':'enabled'};
+      if(api.thinking!==false)payload.reasoning_effort=api.thinkingEffort||'high';
+      if(hasWebTools(api)) {
+        const tools=[];
+        if(api.webSearch)tools.push({type:'deepseek_web_search'});
+        if(api.readUrl)tools.push({type:'deepseek_read_url'});
+        if(tools.length)payload.tools=tools;
+      }
+    }
     const encoded=JSON.stringify(payload);
     if(Buffer.byteLength(encoded)>48*1024*1024)throw new Error('请求中的图片过大，请减少图片或使用 DeepSeek 官方文件上传。');
     const response=await fetch(completionUrl(api.baseUrl), {
-      method:'POST', redirect:'error', signal:AbortSignal.any([signal || new AbortController().signal,AbortSignal.timeout(180000)]),
+      method:'POST', redirect:'error', signal:AbortSignal.any([signal || new AbortController().signal,AbortSignal.timeout(600000)]),
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${api.apiKey}`},
       body:encoded,
     });
@@ -76,25 +91,36 @@ export function provider(api, signal) {
       if(typeof content!=='string' || !content.trim()) throw new Error('模型没有返回正文，请检查模型是否支持文本 Chat Completions。');
       return content;
     },
-    async stream(messages,onDelta) {
+    async stream(messages,onDelta,onEvent=()=>{}) {
       const response=await request(messages,{stream:true});
-      let content='', finished=false, finishReason='';
+      let content='', reasoning='', finalReasoning='', finished=false, finishReason='', server_tool_calls=[], annotations=[], usage;
+      const consume=choice=>{
+        const delta=choice?.delta || choice?.message || {};
+        if(typeof delta.reasoning_content==='string') {reasoning+=delta.reasoning_content;finalReasoning+=delta.reasoning_content;onEvent({type:'reasoning',text:delta.reasoning_content});}
+        if(typeof delta.content==='string'){content+=delta.content;onDelta(delta.content);}
+        if(Array.isArray(delta.server_tool_calls))server_tool_calls=delta.server_tool_calls;
+        if(Array.isArray(delta.annotations))annotations=delta.annotations;
+        const e=choice?.server_tool_event;
+        if(e?.type==='step_reasoning_done')finalReasoning='';
+        if(e?.type==='call_started')onEvent({type:'status',message:e.call?.action?.type==='search'?'正在搜索网页…':'正在阅读网页…'});
+        if(e?.type==='call_completed' && e.call?.status==='failed')onEvent({type:'warning',message:'一项网页搜索或阅读未成功，回复可能缺少相关资料。'});
+        if(choice?.finish_reason){finished=true;finishReason=choice.finish_reason;}
+      };
       if(!response.headers.get('content-type')?.includes('text/event-stream')) {
-        const body=await response.json(); content=body.choices?.[0]?.message?.content || ''; finishReason=body.choices?.[0]?.finish_reason || '';
-        if(content) onDelta(content);
+        const body=await response.json();if(body.error)throw new Error('模型生成失败，请重试。');consume(body.choices?.[0]);usage=body.usage;
       } else {
         for await (const event of readSSE(response.body)) {
           if(event==='[DONE]') {finished=true; break;}
           const body=JSON.parse(event);
           if(body.error) throw new Error('模型在生成过程中返回错误，请重试。');
-          const choice=body.choices?.[0];
-          if(choice?.finish_reason) { finished=true; finishReason=choice.finish_reason; }
-          if(typeof choice?.delta?.content==='string') { content+=choice.delta.content; onDelta(choice.delta.content); }
+          consume(body.choices?.[0]);if(body.usage)usage=body.usage;
         }
         if(!finished) throw new Error('模型连接中断，回复未完成，请重试。');
       }
+      if(finishReason==='content_filter')throw new Error('服务商未返回这条回复，请修改内容后重试。');
       if(!content.trim()) throw new Error('模型没有返回可显示的回复，请增加回复长度或更换模型。');
-      return {content, finishReason};
+      const providerResponse={model:api.model,baseUrl:api.baseUrl,reasoning_content:finalReasoning,server_tool_calls,annotations};
+      return {content, finishReason,metadata:{providerResponse,reasoning,...responseSources(providerResponse),usage}};
     },
   };
 }

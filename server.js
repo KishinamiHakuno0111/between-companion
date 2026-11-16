@@ -7,6 +7,8 @@ import { execFile } from 'node:child_process';
 import { createStore, defaults, prepareContext, extractionInput, parseExtracted } from './core.js';
 import { provider, completionUrl, listModels } from './provider.js';
 import { attachmentStore } from './attachments.js';
+import {currentEnvironment} from './capabilities.js';
+import {transcribe,synthesize,requireSpeech} from './audio.js';
 
 const root=dirname(fileURLToPath(import.meta.url));
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
@@ -35,7 +37,7 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
   const server=http.createServer(async(req,res)=>{
     res.setHeader('Cache-Control','no-store');
     res.setHeader('X-Content-Type-Options','nosniff');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data:; media-src 'self' blob:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try {
       const host=req.headers.host || '';
       if(!allowTestHost && !/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host))throw fail('仅允许本机访问。',403);
@@ -44,6 +46,19 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
       if(path.startsWith('/api/') && req.method!=='GET' && req.headers['x-companion']!=='1')throw fail('请求来源无效。',403);
       if(path==='/api/desktop-instance' && req.method==='GET' && runtimeInfo)return json(res,runtimeInfo);
       if(path==='/api/state' && req.method==='GET')return json(res,snapshot());
+      if(path==='/api/preferences' && req.method==='PUT') {
+        const b=await readBody(req),s=store.settings();
+        for(const k of ['webSearch','readUrl','thinking'])if(k in b){if(typeof b[k]!=='boolean')throw fail('开关格式错误。');s.api[k]=b[k];}
+        if('thinkingEffort' in b){if(!['low','high','max'].includes(b.thinkingEffort))throw fail('思考强度无效。');s.api.thinkingEffort=b.thinkingEffort;}
+        if('voice' in b){if(!['stella','tide'].includes(b.voice))throw fail('音色无效。');s.api.voice=b.voice;}
+        store.saveSettings(s);return json(res,snapshot());
+      }
+      if(path==='/api/transcribe' && req.method==='POST') {
+        const config=store.settings().api;requireSpeech(config);
+        const controller=new AbortController();controllers.add(controller);res.on('close',()=>{if(!res.writableEnded)controller.abort();});
+        try {const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>8*1024*1024)throw fail('录音不能超过 8 MB。',413);chunks.push(chunk);}return json(res,await transcribe(config,Buffer.concat(chunks),controller.signal));}
+        finally {controllers.delete(controller);}
+      }
       if(path==='/api/models' && req.method==='POST') {
         const body=await readBody(req);
         const api=connection(body,store.settings().api);
@@ -61,7 +76,7 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
           const models=Array.isArray(a.models)?a.models.slice(0,1000).filter(m=>typeof m.id==='string'&&m.id.length<=120).map(m=>({id:m.id,name:typeof m.name==='string'?m.name.slice(0,160):m.id,contextTokens:Number.isSafeInteger(m.contextTokens)&&m.contextTokens>0?m.contextTokens:null,maxOutputTokens:Number.isSafeInteger(m.maxOutputTokens)&&m.maxOutputTokens>0?m.maxOutputTokens:null})):[];
           const model=text(a.model,120,true), selected=models.find(m=>m.id===model);
           if(selected?.maxOutputTokens&&outputTokens>selected.maxOutputTokens)throw fail('回复长度超过所选模型的输出上限。');
-          current.api={...credentials,model,contextTokens,outputTokens,models,autoMemory:Boolean(a.autoMemory)};
+          current.api={...current.api,...credentials,model,contextTokens,outputTokens,models,autoMemory:Boolean(a.autoMemory)};
         }
         store.saveSettings(current);return json(res,snapshot());
       }
@@ -74,10 +89,16 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
         const c={id:randomUUID(),name:text(body.name,40,true),tagline:text(body.tagline || '',100),persona:text(body.persona,5000,true),greeting:text(body.greeting || '',1500),avatar:avatar(body.avatar || ''),color:['sage','rose','blue','plum'].includes(body.color)?body.color:'plum',playerOverride:null};
         store.saveCharacter(c);if(c.greeting)store.addMessage(c.id,'assistant',c.greeting,{greeting:true});return json(res,c,201);
       }
-      const match=path.match(/^\/api\/characters\/([^/]+)(?:\/(messages|memories|chat|context|attachments)(?:\/([^/]+))?)?$/);
+      const match=path.match(/^\/api\/characters\/([^/]+)(?:\/(messages|memories|chat|context|attachments|speech)(?:\/([^/]+))?)?$/);
       if(match) {
         const [,id,resource,item]=match, c=store.character(id);
         if(!c)throw fail('角色不存在。',404);
+        if(resource==='speech'&&req.method==='POST'&&item) {
+          const m=store.messages(id).find(m=>m.id===item&&m.role==='assistant');if(!m)throw fail('回复不存在。',404);
+          const b=await readBody(req),controller=new AbortController();controllers.add(controller);res.on('close',()=>{if(!res.writableEnded)controller.abort();});
+          try {const audio=await synthesize(store.settings().api,m.content,b.index??0,controller.signal);res.writeHead(200,{'Content-Type':'audio/wav','X-Audio-Chunks':String(audio.total)});return res.end(audio.bytes);}
+          finally {controllers.delete(controller);}
+        }
         if(req.method!=='GET' && busy.has(id))throw fail('这个角色正在回复或整理记忆，请稍后再试。',409);
         if(resource==='attachments') {
           if(req.method==='POST'&&!item)return json(res,await files.upload(id,req,url.searchParams.get('name'),store.settings().api),201);
@@ -146,10 +167,11 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
             const p=provider(settings.api,controller.signal);
             const through=store.summary(id)?.through_seq||0;
             const liveHistory=await files.hydrate(id,store.messages(id).filter(m=>m.seq>through&&m.role!=='notice'),settings.api,controller.signal,message=>emit('status',{message}));
-            const context=await prepareContext(store,c,settings,p.complete,data=>emit('compact',data),liveHistory);
+            const environment=currentEnvironment(b.timeZone,b.timezoneOffset);
+            const context=await prepareContext(store,c,settings,p.complete,data=>emit('compact',data),liveHistory,environment);
             emit('context',context.stats);
-            const result=await p.stream(context.messages,text=>emit('delta',{text}));
-            const assistant=store.addMessage(id,'assistant',result.content,{finishReason:result.finishReason});
+            const result=await p.stream(context.messages,text=>emit('delta',{text}),event=>emit(event.type,event));
+            const assistant=store.addMessage(id,'assistant',result.content,{finishReason:result.finishReason,...result.metadata});
             emit('reply',{message:assistant});
             if(result.finishReason==='length')emit('warning',{message:'本条回复已达到输出上限。手动设置过回复长度时，可在 API 设置中调高或留空使用自动设置。'});
             if(settings.api.autoMemory && userMessage.content.trim() && !controller.signal.aborted) {
@@ -177,7 +199,7 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
       }
       if(path.startsWith('/api/'))throw fail('接口不存在。',404);
       if(req.method!=='GET')throw fail('不支持此请求。',405);
-      const staticFiles={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/avatars.svg':'avatars.svg'};
+      const staticFiles={'/':'index.html','/app.js':'app.js','/chat-features.js':'chat-features.js','/style.css':'style.css','/avatars.svg':'avatars.svg'};
       const file=staticFiles[path];if(!file)throw fail('页面不存在。',404);
       const bytes=await loadAsset(file);
       res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml'}[extname(file)]});res.end(bytes);

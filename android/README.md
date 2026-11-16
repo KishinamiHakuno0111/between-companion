@@ -1,11 +1,11 @@
 # 此间 Android 独立版
 
-安装包：[`../dist/between-0.2.1-android.apk`](../dist/between-0.2.1-android.apk)。支持 Android 10 及以上，需要较新的 Android System WebView / Chrome。Java 字节码应用，不限制 ARM64、ARM 或 x86 架构。
+安装包：[between-0.3.0-android.apk](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.0/between-0.3.0-android.apk)。支持 Android 10 及以上，需要较新的 Android System WebView / Chrome。Java 字节码应用，不限制 ARM64、ARM 或 x86 架构。
 
 ## 安装使用
 
 1. 将 APK 发到手机，在手机上打开并按系统提示安装。
-   已安装旧版时直接覆盖安装，保留应用数据，不要先卸载。本版为 0.2.1（versionCode 2），沿用原签名。
+   已安装旧版时直接覆盖安装，保留应用数据，不要先卸载。本版为 0.3.0（versionCode 3），沿用原签名。
 2. 打开「此间」，进入 API 设置，选择 DeepSeek 官方或 OpenAI 兼容接口。
 3. 填入自己的 Key，点击「连接」，选择模型并保存。DeepSeek 图片和文档使用 `deepseek-flash`。
 4. 创建角色即可聊天。无需启动电脑、Node.js 或局域网服务。
@@ -21,7 +21,7 @@
 - 界面与业务逻辑来自现有 `public/`、`server.js`、`core.js`、`provider.js` 和 `attachments.js`，由 esbuild 打包为本地资源。
 - `runtime/platform.js` 把现有数据库调用映射到 Android SQLite，把本地 API 调用直接交给应用内处理函数，不启动 HTTP 服务器。
 - `runtime/network.js` 与 Java 桥接完成 HTTPS/HTTP 请求、multipart 文件上传、SSE 数据传输和取消。
-- `MainActivity.java` 负责私有数据库、离线资源、文件选择/保存、图片粘贴与返回键。仅声明联网权限；文件访问通过系统选择器按次授权。关闭 Android 应用备份，不向第三方托管服务同步数据。
+- `MainActivity.java` 负责私有数据库、离线资源、文件选择/保存、图片粘贴、麦克风授权与返回键。声明联网和录音权限，只有点击语音输入后才请求麦克风授权；文件访问通过系统选择器按次授权。关闭 Android 应用备份，不向第三方托管服务同步数据。
 - 针对 Android 10 SQLite 版本，公共存储逻辑使用 `INSERT OR IGNORE` + `UPDATE`，避免新版 UPSERT 语法，也避免 `REPLACE` 级联删除历史。
 
 ## 构建
@@ -47,8 +47,8 @@ cd ..
 npm test
 ```
 
-桌面 18 项测试通过。Android 运行适配层测试通过，覆盖 SQLite 桥、模型获取、角色隔离、附件读写、流式回复和重新创建运行环境后的持久化。APK 已通过 Android `apksigner verify` 与包结构校验。
+桌面 24 项测试通过。Android 运行适配层测试通过，覆盖 SQLite 桥、模型获取、角色隔离、附件读写、流式回复、当前时间、工具偏好和重新创建运行环境后的持久化。APK 已通过 Android `apksigner verify` 与包结构校验。输入框上方可设置联网搜索、深度思考、阅读链接与语音；详情见 [功能说明](../docs/FEATURES.md)。
 
 当前环境没有连接 Android 真机；尚未完成真机安装、系统文件选择器及不同输入法上的端到端验证。
 
-0.2.1 修复发送、回复完成和记忆通知时重建整个聊天列表的问题。流式气泡直接保留为正式消息，取消消息列表淡入与流式平滑滚动；发送时保持输入框可编辑，结束后手机不强制聚焦。已在 390px 窄屏验证消息节点复用、阅读位置、停止重试和角色切换；真实手机键盘表现仍待真机验证。
+0.3.0 修复发送、回复完成和记忆通知时重建整个聊天列表的问题。流式气泡直接保留为正式消息，取消消息列表淡入与流式平滑滚动；发送时保持输入框可编辑，结束后手机不强制聚焦。已在 390px 窄屏验证消息节点复用、阅读位置、停止重试和角色切换；真实手机键盘表现仍待真机验证。

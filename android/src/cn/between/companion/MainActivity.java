@@ -31,6 +31,7 @@ public class MainActivity extends Activity {
     private final ConcurrentHashMap<String,HttpURLConnection> connections=new ConcurrentHashMap<>();
     private final Set<String> cancelled=ConcurrentHashMap.newKeySet();
     private ValueCallback<Uri[]> fileCallback;
+    private PermissionRequest microphoneRequest;
     private String downloadCharacter,downloadId;
 
     @Override public void onCreate(Bundle saved){
@@ -54,6 +55,7 @@ public class MainActivity extends Activity {
         };
         web.setBackgroundColor(Color.rgb(250,248,246));
         WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);settings.setAllowContentAccess(true);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSupportMultipleWindows(false);settings.setJavaScriptCanOpenWindowsAutomatically(false);
         web.addJavascriptInterface(new Bridge(),"BetweenNative");
@@ -67,6 +69,13 @@ public class MainActivity extends Activity {
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){if(request.isForMainFrame())toast("页面加载失败，请重新打开应用。");}
         });
         web.setWebChromeClient(new WebChromeClient(){
+            @Override public void onPermissionRequest(PermissionRequest request){runOnUiThread(()->{
+                if(!isInternal(request.getOrigin())||!Arrays.asList(request.getResources()).contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)){request.deny();return;}
+                if(checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)==android.content.pm.PackageManager.PERMISSION_GRANTED){request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});return;}
+                if(microphoneRequest!=null){request.deny();return;}microphoneRequest=request;
+                requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},21);
+            });}
+            @Override public void onPermissionRequestCanceled(PermissionRequest request){if(microphoneRequest==request)microphoneRequest=null;}
             @Override public boolean onShowFileChooser(WebView view,ValueCallback<Uri[]> callback,FileChooserParams params){
                 if(fileCallback!=null)fileCallback.onReceiveValue(null);fileCallback=callback;
                 Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("*/*");intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,params.getMode()==FileChooserParams.MODE_OPEN_MULTIPLE);
@@ -83,7 +92,7 @@ public class MainActivity extends Activity {
     private static byte[] utf8(String value){return value.getBytes(StandardCharsets.UTF_8);}
     private Cursor query(String sql,String[] params){
         Cursor cursor=database.rawQuery(sql,params);
-        if(sql.toLowerCase(Locale.ROOT).contains("attachments")&&cursor instanceof AbstractWindowedCursor)((AbstractWindowedCursor)cursor).setWindow(new CursorWindow("between-attachment",32L*1024*1024));
+        if((sql.toLowerCase(Locale.ROOT).contains("attachments")||sql.toLowerCase(Locale.ROOT).contains("messages"))&&cursor instanceof AbstractWindowedCursor)((AbstractWindowedCursor)cursor).setWindow(new CursorWindow("between-content",32L*1024*1024));
         return cursor;
     }
     private static WebResourceResponse blocked(){return new WebResourceResponse("text/plain","UTF-8",403,"Forbidden",Collections.emptyMap(),new ByteArrayInputStream(utf8("Forbidden")));}
@@ -103,14 +112,20 @@ public class MainActivity extends Activity {
             String name=path.equals("/")?"index.html":path.substring(1);
             if(!Arrays.asList("index.html","runtime.js","style.css").contains(name))return blocked();
             Map<String,String> headers=new HashMap<>();headers.put("X-Content-Type-Options","nosniff");
-            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'");
+            headers.put("Content-Security-Policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'");
             return new WebResourceResponse(name.endsWith(".js")?"text/javascript":name.endsWith(".css")?"text/css":"text/html","UTF-8",200,"OK",headers,getAssets().open(name));
         }catch(Exception error){return blocked();}
     }
     @Override public void onBackPressed(){js("window.__betweenBack ? window.__betweenBack() : BetweenNative.minimize()");}
+    @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){
+        super.onRequestPermissionsResult(request,permissions,results);
+        if(request==21&&microphoneRequest!=null){PermissionRequest pending=microphoneRequest;microphoneRequest=null;
+            if(results.length>0&&results[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)pending.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});else pending.deny();}
+    }
     @Override protected void onDestroy(){
         for(HttpURLConnection c:connections.values())c.disconnect();workers.shutdownNow();
         if(fileCallback!=null)fileCallback.onReceiveValue(null);
+        if(microphoneRequest!=null){microphoneRequest.deny();microphoneRequest=null;}
         if(web!=null){web.removeJavascriptInterface("BetweenNative");web.destroy();web=null;}
         if(database!=null)database.close();super.onDestroy();
     }

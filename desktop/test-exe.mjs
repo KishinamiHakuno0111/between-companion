@@ -42,6 +42,7 @@ const call=async(path,method='GET',body)=>{
 try{
   let child=launch();await ready(child);
   const html=await(await fetch(url)).text();assert.ok(html.includes('此间'));assert.ok((await(await fetch(url+'/app.js')).text()).includes('attachmentHTML'));assert.ok((await(await fetch(url+'/style.css')).text()).includes('.composer'));
+  assert.ok((await(await fetch(url+'/chat-features.js')).text()).includes('wavFromSamples'),'新版前端模块已内嵌');
   const state=await call('/api/state');assert.equal(state.characters.length,0);assert.equal(state.settings.api.hasKey,false);
   const character=await call('/api/characters','POST',{name:'便携测试',persona:'自然地交流',avatar:''});
   await call(`/api/characters/${character.id}/memories`,'POST',{title:'偏好',content:'喜欢红茶',category:'喜好'});

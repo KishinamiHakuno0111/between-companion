@@ -30,7 +30,7 @@ test('DeepSeek 自动输出使用模型最大值；辅助任务单独设置小�
     const api={...defaults,provider:'deepseek',model:'flash-test',baseUrl:`http://127.0.0.1:${server.address().port}`,apiKey:'test',contextTokens:1048576,models:[{id:'flash-test',maxOutputTokens:393216}]};
     await provider(api).stream([{role:'user',content:'你好'}],()=>{});
     await provider(api).complete([{role:'user',content:'摘要'}],{maxTokens:800});
-    assert.equal(bodies[0].max_tokens,393216);assert.equal(bodies[0].thinking,undefined);
+    assert.equal(bodies[0].max_tokens,393216);assert.equal(bodies[0].thinking.type,'enabled');
     assert.equal(bodies[1].max_tokens,800);assert.equal(bodies[1].thinking.type,'disabled');
     assert.equal(outputReservation(api),393216);
   }finally{await new Promise(r=>server.close(r));}
