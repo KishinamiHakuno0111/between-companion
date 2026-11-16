@@ -33,7 +33,7 @@ upstream.listen(0,'127.0.0.1');await once(upstream,'listening');
 try{
   const {createApp,installNetwork}=await import('./build/mobile-test-bundle.mjs');const app=createApp();installNetwork(app.server);
   const call=async(path,method='GET',body)=>{const response=await fetch(location.origin+path,{method,headers:{'X-Companion':'1','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const value=await response.json();assert.ok(response.ok,JSON.stringify(value));return value;};
-  let state=await call('/api/state');assert.equal(state.characters.length,0);assert.equal(state.settings.api.hasKey,false);
+  let state=await call('/api/state');assert.equal(state.characters.length,0);assert.equal(state.settings.api.hasKey,false);assert.equal(state.settings.api.webSearch,true);
   const settings={...state.settings.api,provider:'openai',baseUrl:`http://127.0.0.1:${upstream.address().port}/v1`,model:'mobile-test',apiKey:'test-mobile-only',autoMemory:false};
   const models=await call('/api/models','POST',settings);assert.equal(models.models[0].id,'mobile-test');
   await call('/api/settings','PUT',{api:settings});

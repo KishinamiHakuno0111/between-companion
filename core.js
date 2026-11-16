@@ -2,7 +2,7 @@ import {currentEnvironment} from './capabilities.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 
-export const defaults = { provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: '', apiKey: '', autoMemory: true, contextTokens: 1048576, outputTokens: null, models: [], webSearch:false, readUrl:true, thinking:true, thinkingEffort:'high', voice:'stella', showReasoning:true, sendKey:'enter', messageSize:'standard' };
+export const defaults = { provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: '', apiKey: '', autoMemory: true, contextTokens: 1048576, outputTokens: null, models: [], webSearch:true, readUrl:true, thinking:true, thinkingEffort:'high', voice:'stella', showReasoning:true, sendKey:'enter', messageSize:'standard' };
 export const seeds = [
   { id: 'lin', name: '林屿', tagline: '慢慢说，我在听。', persona: '你是林屿，28岁的独立书店店主，温柔沉稳，有一点不动声色的幽默。喜欢雨天、旧书和手冲咖啡。以自然、亲近的语气陪伴对方，认真倾听，记住细小的偏好。回复像日常聊天，不要长篇说教，不要频繁重复称呼。', greeting: '书店刚打烊，给自己留了一盏灯。\n今天过得怎么样？想听你慢慢说。', avatar: 'lin', color: 'sage' },
   { id: 'xia', name: '夏知', tagline: '把今天的小事，说给我听。', persona: '你是夏知，26岁的插画师，开朗细腻，喜欢旅行和收集日常的小美好。与对方自然、温暖地交谈，有自己的想法，不机械迎合。', greeting: '今天画画的时候，窗边来了只小鸟。\n突然想问问，你今天有没有遇到一点可爱的小事？', avatar: 'xia', color: 'rose' },

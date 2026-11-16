@@ -9,7 +9,7 @@ import {createStore,seeds,defaults,outputReservation} from '../core.js';
 import {provider} from '../provider.js';
 
 test('新安装没有默认角色，输出默认自动',()=>{
-  const store=createStore();assert.equal(store.characters().length,0);assert.equal(store.settings().api.outputTokens,null);assert.equal(store.settings().api.provider,'deepseek');assert.equal(store.settings().api.baseUrl,'https://api.deepseek.com');assert.equal(store.settings().api.contextTokens,1048576);const saved=store.settings();saved.api={...saved.api,provider:'openai',baseUrl:'https://example.org/v1',model:'saved-model'};store.saveSettings(saved);assert.equal(store.settings().api.provider,'openai');assert.equal(store.settings().api.baseUrl,'https://example.org/v1');store.db.close();
+  const store=createStore();assert.equal(store.characters().length,0);assert.equal(store.settings().api.outputTokens,null);assert.equal(store.settings().api.provider,'deepseek');assert.equal(store.settings().api.webSearch,true);assert.equal(store.settings().api.baseUrl,'https://api.deepseek.com');assert.equal(store.settings().api.contextTokens,1048576);const saved=store.settings();saved.api={...saved.api,webSearch:false,provider:'openai',baseUrl:'https://example.org/v1',model:'saved-model'};store.saveSettings(saved);assert.equal(store.settings().api.provider,'openai');assert.equal(store.settings().api.webSearch,false);assert.equal(store.settings().api.baseUrl,'https://example.org/v1');store.db.close();
 });
 
 test('升级仅移除未使用的默认角色，保留真实聊天和编辑后的角色',()=>{

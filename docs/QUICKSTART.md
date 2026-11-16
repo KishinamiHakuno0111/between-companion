@@ -1,8 +1,8 @@
 # 从下载到第一句话
 
-当前版本 **0.3.2**。[新版联网、思考与语音功能说明](FEATURES.md)。下面截图里的 0.2.1 是旧版文件名示例，下载时以 README 链接或最新 Release 的 0.3.2 安装包为准。
+当前版本 **0.3.3**。[新版联网、思考与语音功能说明](FEATURES.md)。下面截图里的 0.2.1 是旧版文件名示例，下载时以 README 链接或最新 Release 的 0.3.3 安装包为准。
 
-**直接下载安装包：** [Windows 64 位 EXE](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.2/Between-0.3.2-Windows-x64.exe) · [Android APK](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.2/between-0.3.2-android.apk)
+**直接下载安装包：** [Windows 64 位 EXE](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.3/Between-0.3.3-Windows-x64.exe) · [Android APK](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.3/between-0.3.3-android.apk)
 
 不用下载整个项目。电脑双击 EXE，安卓点击 APK 安装。软件免费开源，模型 API 按服务商实际用量收费。
 
