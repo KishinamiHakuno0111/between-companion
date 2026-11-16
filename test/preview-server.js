@@ -1,0 +1,35 @@
+// Browser QA only: in-memory database + a local deterministic mock, never a real provider.
+import http from 'node:http';
+import { once } from 'node:events';
+import { createApp } from '../server.js';
+import { createTestStore as createStore } from './fixtures.js';
+import {readFile} from 'node:fs/promises';
+import {setTimeout as delay} from 'node:timers/promises';
+
+const mock=http.createServer(async(req,res)=>{
+  if(req.method==='GET'&&req.url==='/v1/models'){
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({data:[{id:'local-test-only',name:'QA Model',context_window:1048576,max_output_tokens:393216}]}));return;
+  }
+  let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);
+  if(input.stream){
+    res.writeHead(200,{'Content-Type':'text/event-stream'});
+    const words=process.env.QA_RENDER==='1'?Array.from({length:24},(_,i)=>`第${i+1}段流式文字，用于验证连续输出时的滚动稳定性。\n`):['9月12日，','我记住了。\n','到时候，想送你一本写满祝福的书。'];
+    for(const word of words){if(process.env.QA_RENDER==='1')await delay(45);if(res.destroyed)return;res.write('data: '+JSON.stringify({choices:[{delta:{content:word}}]})+'\n\n');}
+    res.end('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n');
+  }else{
+    const content=input.messages[0].content.includes('提取玩家')?JSON.stringify({memories:[{key:'birthday',title:'生日',content:'生日是9月12日',category:'个人信息',evidence:'我的生日是9月12日'}]}):'双方在书店的夜晚交谈，玩家提到了自己的生日。';
+    res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({choices:[{message:{content}}]}));
+  }
+});
+mock.listen(0,'127.0.0.1');await once(mock,'listening');
+const store=createStore();
+if(process.env.QA_RENDER==='1')for(const c of store.characters())for(let i=0;i<14;i++)store.addMessage(c.id,i%2?'assistant':'user',`历史对话 ${i+1}：保持原有消息、头像和滚动位置。\n这是用来检查长对话的测试内容。`);
+if(process.env.QA_EMPTY==='1')store.db.exec('DELETE FROM characters');
+const settings=store.settings();settings.api={...settings.api,baseUrl:`http://127.0.0.1:${mock.address().port}/v1`,model:'local-test-only',apiKey:'test-only'};store.saveSettings(settings);
+const app=createApp({store,loadAsset:async file=>{
+  const source=await readFile(new URL('../public/'+file,import.meta.url));
+  return file==='app.js'&&process.env.QA_RENDER==='1'?source+'\n'+await readFile(new URL('./render-browser.js',import.meta.url),'utf8'):source;
+}});
+const port=Number(process.env.QA_PORT||3211);
+app.server.listen(port,'127.0.0.1',()=>console.log(`QA fixture only: http://127.0.0.1:${port} (temporary data, mock responses)`));

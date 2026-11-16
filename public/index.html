@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f8f6f3"><title>此间 Between</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body>
+  <div class="app" id="app">
+    <nav class="rail" aria-label="主导航">
+      <a class="brand" href="/" aria-label="此间首页"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 7h14M9 25h14M10 8v16M22 8v16M10 16h12"/><path d="M6 12v8M26 12v8"/></svg></a>
+      <button class="rail-button selected" id="navChats" aria-label="聊天列表" title="聊天列表" data-icon="chat"></button>
+      <button class="rail-button" id="navMemory" aria-label="记忆库" title="记忆库" data-icon="book"></button>
+      <div class="rail-bottom"><button class="rail-button" id="navSettings" aria-label="API 设置" title="API 设置" data-icon="settings"></button><button class="player-avatar" id="navPlayer" aria-label="我的全局人设" title="我的全局人设">我</button></div>
+    </nav>
+    <aside class="conversations" id="conversations">
+      <div class="list-heading"><div><div class="eyebrow">BETWEEN</div><h1>此间</h1></div><button class="icon-button soft" id="newCharacter" aria-label="创建新角色" title="创建新角色" data-icon="plus"></button></div>
+      <label class="search"><span data-icon="search"></span><input id="searchCharacters" type="search" placeholder="搜索角色" aria-label="搜索角色"></label>
+      <div class="section-caption"><span>我的对话</span><span id="characterCount">0</span></div>
+      <div id="characterList" class="character-list"></div>
+      <button class="add-companion" id="addCompanion"><span data-icon="plus"></span>创建角色</button>
+      <button id="connectionStatus" class="connection-status"><span class="status-dot"></span><span id="connectionLabel">连接你的 AI 模型</span><span data-icon="chevron"></span></button>
+    </aside>
+    <main class="chat" id="chat">
+      <header class="chat-header"><button class="icon-button mobile-back" id="backToList" aria-label="返回聊天列表" data-icon="back"></button><div id="headerAvatar"></div><div class="chat-heading"><h2 id="chatName">此间</h2><p id="chatTagline"></p></div><button class="icon-button" id="editCharacter" aria-label="编辑角色" title="编辑角色" data-icon="edit"></button><button class="icon-button" id="toggleDetails" aria-label="角色与记忆" title="角色与记忆" data-icon="panel"></button></header>
+      <div class="chat-scroll" id="chatScroll" tabindex="0" aria-label="聊天记录"><div id="conversationIntro"></div><div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions"></div></div>
+      <div id="chatAlert" class="chat-alert" hidden role="status"></div>
+      <div class="composer-wrap"><div class="composer"><div id="attachmentDrafts" class="attachment-drafts" aria-live="polite" hidden></div><input type="file" id="attachmentInput" multiple hidden accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.csv,.json,.epub,.mobi,.log,.yaml,.yml,.xml,.html,.css,.js,.ts,.py,.java,.c,.cpp,.h,.sql,.sh,.ini,.toml,.bmp,.tif,.tiff"><textarea id="messageInput" rows="2" maxlength="12000" aria-label="发送消息" placeholder="输入消息…"></textarea><div class="composer-bottom"><button type="button" id="attachFile" class="icon-button" title="添加图片或文件，也可粘贴图片" aria-label="添加图片或文件" data-icon="attach"></button><button id="personaShortcut" class="persona-shortcut"><span data-icon="user"></span><span id="personaLabel">以「我」的身份聊天</span></button><button id="sendMessage" class="send-button" aria-label="发送消息"><span data-icon="arrow"></span></button></div></div><div class="composer-caption"><span id="generationStatus">Enter 发送 · Shift + Enter 换行</span><button id="contextStatus" title="查看上下文管理">上下文 <span data-icon="leaf"></span></button></div></div>
+    </main>
+    <aside class="details" id="details" aria-label="角色与记忆"><div class="details-heading"><span>角色资料</span><button class="icon-button" id="closeDetails" aria-label="关闭详情" data-icon="close"></button></div><div id="profileCard"></div><div class="detail-tabs" role="tablist" aria-label="角色资料"><button id="tabMemory" role="tab" aria-selected="true">TA 的记忆 <span id="memoryCount">0</span></button><button id="tabPersona" role="tab" aria-selected="false">我的人设</button></div><div id="detailContent" class="detail-content"></div></aside>
+  </div>
+  <dialog id="modal" aria-labelledby="modalTitle"><form id="modalForm"><header class="modal-header"><div><p class="eyebrow" id="modalEyebrow">BETWEEN</p><h2 id="modalTitle"></h2></div><button type="button" class="icon-button" id="closeModal" aria-label="关闭弹窗" data-icon="close"></button></header><div id="modalContent" class="modal-content"></div><div id="modalError" class="form-error" role="alert" hidden></div><footer class="modal-footer"><div id="modalExtra"></div><button type="button" class="button secondary" id="cancelModal">取消</button><button type="submit" class="button primary" id="saveModal">保存</button></footer></form></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body></html>

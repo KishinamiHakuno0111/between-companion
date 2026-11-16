@@ -1,0 +1,7 @@
+{
+  "name": "between-android-build",
+  "private": true,
+  "type": "module",
+  "devDependencies": {"esbuild": "^0.25.0", "buffer": "^6.0.3"},
+  "scripts": {"bundle": "node build-web.mjs", "test": "node test-mobile.mjs"}
+}

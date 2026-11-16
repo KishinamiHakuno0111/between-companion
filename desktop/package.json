@@ -1,0 +1,7 @@
+{
+  "name": "between-windows-build",
+  "private": true,
+  "type": "module",
+  "scripts": {"build": "node build.mjs", "test": "node test-exe.mjs"},
+  "devDependencies": {"esbuild": "^0.25.0", "postject": "^1.0.0-alpha.6", "resedit": "^2.0.0"}
+}

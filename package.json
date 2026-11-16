@@ -1,0 +1,19 @@
+{
+  "name": "between-companion",
+  "version": "0.2.1",
+  "private": true,
+  "type": "module",
+  "description": "此间 · 本地陪伴聊天与独立角色记忆",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KishinamiHakuno0111/between-companion.git"
+  }
+}
