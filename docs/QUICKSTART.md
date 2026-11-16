@@ -12,6 +12,16 @@
 
 ![申请API密钥](guide/05.png)
 
+## 认准APIKey
+
+![认准APIKey](guide/05b.png)
+
+**API Key 与 Tracking ID 是两回事：**
+
+- 每个完整 API Key 只在创建成功时显示一次，在弹窗里点击「复制」，妥善保存后再填入此间。
+- 管理列表里的 Tracking ID 即使可以复制，也不能用作 API Key；列表中带星号的 Key 同样不是完整密钥。
+- 如果没有保存且已关闭弹窗，需要重新创建 Key。管理页无法再次显示原来的完整 Key。
+
 ## 连接模型
 
 ![连接模型](guide/06.png)
