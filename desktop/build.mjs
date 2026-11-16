@@ -44,7 +44,7 @@ const icon=ResEdit.Data.IconFile.from(ico);
 const groups=ResEdit.Resource.IconGroupEntry.fromEntries(resources.entries);
 for(const group of groups)ResEdit.Resource.IconGroupEntry.replaceIconsForResource(resources.entries,group.id,group.lang,icon.icons.map(item=>item.data));
 for(const info of ResEdit.Resource.VersionInfo.fromEntries(resources.entries)){
-  info.setFileVersion(0,3,0,0,1033);info.setProductVersion(0,3,0,0,1033);
+  info.setFileVersion(0,3,1,0,1033);info.setProductVersion(0,3,1,0,1033);
   info.setStringValues({lang:1033,codepage:1200},{FileDescription:'此间 · 陪伴聊天',ProductName:'此间 Between',CompanyName:'Between',InternalName:'between',OriginalFilename:'此间.exe',LegalCopyright:'Between · Includes Node.js under its license'});
   info.outputToResourceEntries(resources.entries);
 }

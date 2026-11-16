@@ -1,11 +1,11 @@
 # 此间 Android 独立版
 
-安装包：[between-0.3.0-android.apk](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.0/between-0.3.0-android.apk)。支持 Android 10 及以上，需要较新的 Android System WebView / Chrome。Java 字节码应用，不限制 ARM64、ARM 或 x86 架构。
+安装包：[between-0.3.1-android.apk](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.1/between-0.3.1-android.apk)。支持 Android 10 及以上，需要较新的 Android System WebView / Chrome。Java 字节码应用，不限制 ARM64、ARM 或 x86 架构。
 
 ## 安装使用
 
 1. 将 APK 发到手机，在手机上打开并按系统提示安装。
-   已安装旧版时直接覆盖安装，保留应用数据，不要先卸载。本版为 0.3.0（versionCode 3），沿用原签名。
+   已安装旧版时直接覆盖安装，保留应用数据，不要先卸载。本版为 0.3.1（versionCode 4），沿用原签名。
 2. 打开「此间」，进入 API 设置，选择 DeepSeek 官方或 OpenAI 兼容接口。
 3. 填入自己的 Key，点击「连接」，选择模型并保存。DeepSeek 图片和文档使用 `deepseek-flash`。
 4. 创建角色即可聊天。无需启动电脑、Node.js 或局域网服务。
@@ -52,3 +52,5 @@ npm test
 当前环境没有连接 Android 真机；尚未完成真机安装、系统文件选择器及不同输入法上的端到端验证。
 
 0.3.0 修复发送、回复完成和记忆通知时重建整个聊天列表的问题。流式气泡直接保留为正式消息，取消消息列表淡入与流式平滑滚动；发送时保持输入框可编辑，结束后手机不强制聚焦。已在 390px 窄屏验证消息节点复用、阅读位置、停止重试和角色切换；真实手机键盘表现仍待真机验证。
+
+0.3.1 将语音输入改为发送旁的麦克风与横向波形，朗读按钮原位切换停止图标。思考强度在输入区底部向上展开；链接阅读、音色、自动记忆与显示偏好收纳到分类设置中。

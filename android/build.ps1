@@ -21,7 +21,7 @@ if (!(Test-Path -LiteralPath 'signing/between.jks')) {
     Invoke-Checked 'python' @('-c',"from pathlib import Path; import secrets; Path('signing/password.txt').write_text(secrets.token_hex(32),encoding='ascii')")
     Invoke-Checked "$jdkPath/bin/keytool.exe" @('-genkeypair','-keystore','signing/between.jks','-storetype','JKS','-storepass:file','signing/password.txt','-keypass:file','signing/password.txt','-alias','between','-keyalg','RSA','-keysize','3072','-validity','10000','-dname','CN=Between Local App, OU=Personal, O=Between, C=CN')
 }
-Invoke-Checked "$jdkPath/bin/java.exe" @('-jar',"$toolPath/lib/apksigner.jar",'sign','--ks','signing/between.jks','--ks-key-alias','between','--ks-pass','file:signing/password.txt','--out','../dist/between-0.3.0-android.apk','build/aligned.apk')
-Invoke-Checked "$jdkPath/bin/java.exe" @('-jar',"$toolPath/lib/apksigner.jar",'verify','--verbose','../dist/between-0.3.0-android.apk')
-Get-FileHash -Algorithm SHA256 -LiteralPath '../dist/between-0.3.0-android.apk' | ForEach-Object { $_.Hash.ToLower() + '  between-0.3.0-android.apk' } | Set-Content -Encoding ascii '../dist/between-0.3.0-android.apk.sha256'
-Write-Output 'APK ready: dist/between-0.3.0-android.apk'
+Invoke-Checked "$jdkPath/bin/java.exe" @('-jar',"$toolPath/lib/apksigner.jar",'sign','--ks','signing/between.jks','--ks-key-alias','between','--ks-pass','file:signing/password.txt','--out','../dist/between-0.3.1-android.apk','build/aligned.apk')
+Invoke-Checked "$jdkPath/bin/java.exe" @('-jar',"$toolPath/lib/apksigner.jar",'verify','--verbose','../dist/between-0.3.1-android.apk')
+Get-FileHash -Algorithm SHA256 -LiteralPath '../dist/between-0.3.1-android.apk' | ForEach-Object { $_.Hash.ToLower() + '  between-0.3.1-android.apk' } | Set-Content -Encoding ascii '../dist/between-0.3.1-android.apk.sha256'
+Write-Output 'APK ready: dist/between-0.3.1-android.apk'

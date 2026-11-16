@@ -35,7 +35,20 @@ const settings=store.settings();settings.api={...settings.api,baseUrl:`http://12
 if(process.env.QA_TOOLS==='1'){settings.api={...settings.api,provider:'deepseek',model:'deepseek-flash',webSearch:true};store.saveSettings(settings);}
 const app=createApp({store,loadAsset:async file=>{
   const source=await readFile(new URL('../public/'+file,import.meta.url));
+  if(file==='app.js'&&process.env.QA_VOICE==='1'){
+    const full=source+'\n'+await readFile(new URL('./voice-browser.js',import.meta.url),'utf8')+(process.env.QA_UI==='1'?'\n'+await readFile(new URL('./settings-browser.js',import.meta.url),'utf8'):'');
+    if(process.env.QA_PHONE==='1'){
+      const newline=full.indexOf('\n');
+      return full.slice(0,newline)+`\nif(window===window.top){const frame=document.createElement('iframe');frame.id='phoneFrame';frame.title='375px 手机界面测试';frame.src='/';frame.style.cssText='width:375px;height:812px;border:0;display:block;margin:20px auto';document.body.replaceChildren(frame);document.body.style.cssText='overflow:auto;height:auto;min-height:860px';}else{\n`+full.slice(newline+1)+'\n}';
+    }
+    return full;
+  }
   return file==='app.js'&&process.env.QA_RENDER==='1'?source+'\n'+await readFile(new URL('./render-browser.js',import.meta.url),'utf8'):source;
 }});
+// Test-only same-origin iframe for a deterministic 375px layout, independent of host browser size.
+if(process.env.QA_PHONE==='1'){
+  const handler=app.server.listeners('request')[0];app.server.removeAllListeners('request');
+  app.server.on('request',(req,res)=>{const set=res.setHeader.bind(res);res.setHeader=(name,value)=>set(name,name==='Content-Security-Policy'?value.replace("frame-ancestors 'none'","frame-ancestors 'self'"):value);handler(req,res);});
+}
 const port=Number(process.env.QA_PORT||3211);
 app.server.listen(port,'127.0.0.1',()=>console.log(`QA fixture only: http://127.0.0.1:${port} (temporary data, mock responses)`));

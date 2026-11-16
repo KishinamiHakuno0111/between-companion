@@ -1,6 +1,6 @@
 {
   "name": "between-companion",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "此间 · 本地陪伴聊天与独立角色记忆",

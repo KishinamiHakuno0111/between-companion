@@ -70,6 +70,9 @@ test('偏好持久化、网页响应角色隔离、重启后保留；朗读不�
   t.after(async()=>{await new Promise(r=>app.server.close(r));store.db.close();});
   const base=`http://127.0.0.1:${app.server.address().port}`;const call=(path,body)=>fetch(base+path,{method:'PUT',headers:{'X-Companion':'1','Content-Type':'application/json'},body:JSON.stringify(body)});
   assert.equal((await call('/api/preferences',{webSearch:true,thinking:false,voice:'tide'})).status,200);assert.equal(store.settings().api.webSearch,true);assert.equal(store.settings().api.voice,'tide');assert.equal((await call('/api/preferences',{voice:'unknown'})).status,400);
+  assert.equal((await call('/api/preferences',{showReasoning:false,sendKey:'modifier',messageSize:'large',autoMemory:false})).status,200);
+  const saved=store.settings().api;assert.equal(saved.showReasoning,false);assert.equal(saved.sendKey,'modifier');assert.equal(saved.messageSize,'large');assert.equal(saved.autoMemory,false);assert.equal(saved.thinking,false);
+  for(const bad of [{showReasoning:'false'},{sendKey:'invalid'},{messageSize:'huge'},{autoMemory:1}])assert.equal((await call('/api/preferences',bad)).status,400);
   const message=store.addMessage('lin','assistant','test',{providerResponse:{server_tool_calls:calls},citations:responseSources({annotations}).citations});
   assert.equal(store.messages('xia').some(m=>m.id===message.id),false);
   assert.equal((await fetch(base+`/api/characters/xia/speech/${message.id}`,{method:'POST',headers:{'X-Companion':'1'},body:'{}'})).status,404);

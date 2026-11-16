@@ -48,7 +48,9 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
       if(path==='/api/state' && req.method==='GET')return json(res,snapshot());
       if(path==='/api/preferences' && req.method==='PUT') {
         const b=await readBody(req),s=store.settings();
-        for(const k of ['webSearch','readUrl','thinking'])if(k in b){if(typeof b[k]!=='boolean')throw fail('开关格式错误。');s.api[k]=b[k];}
+        for(const k of ['webSearch','readUrl','thinking','showReasoning','autoMemory'])if(k in b){if(typeof b[k]!=='boolean')throw fail('开关格式错误。');s.api[k]=b[k];}
+        if('sendKey' in b){if(!['enter','modifier'].includes(b.sendKey))throw fail('发送快捷键无效。');s.api.sendKey=b.sendKey;}
+        if('messageSize' in b){if(!['standard','large'].includes(b.messageSize))throw fail('聊天字号无效。');s.api.messageSize=b.messageSize;}
         if('thinkingEffort' in b){if(!['low','high','max'].includes(b.thinkingEffort))throw fail('思考强度无效。');s.api.thinkingEffort=b.thinkingEffort;}
         if('voice' in b){if(!['stella','tide'].includes(b.voice))throw fail('音色无效。');s.api.voice=b.voice;}
         store.saveSettings(s);return json(res,snapshot());
