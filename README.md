@@ -2,7 +2,11 @@
 
 一个可以接入自己 API 的陪伴式聊天工具。设定角色、聊日常，让每个角色拥有独立的对话和记忆。支持 DeepSeek 官方与 OpenAI 兼容接口，提供 Windows 和 Android 独立版。
 
-**[下载安装包](https://github.com/KishinamiHakuno0111/between-companion/releases/latest)** · [使用说明](#启动) · [MIT 许可证](LICENSE)
+**直接下载： [Windows 电脑版（EXE）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.2.1/Between-0.2.1-Windows-x64.exe) · [Android 安卓版（APK）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.2.1/between-0.2.1-android.apk)**
+
+Windows 下载后双击；Android 下载后安装。**不用下载整个项目，也不用安装编程环境。**
+
+[全部发布文件](https://github.com/KishinamiHakuno0111/between-companion/releases/latest) · [使用说明](#启动) · [MIT 许可证](LICENSE)
 
 ![此间聊天界面（演示数据）](docs/chat-preview.jpg)
 
