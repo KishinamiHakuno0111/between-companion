@@ -6,7 +6,7 @@
 
 Windows 下载后双击；Android 下载后安装。**不用下载整个项目，也不用安装编程环境。**
 
-[全部发布文件](https://github.com/KishinamiHakuno0111/between-companion/releases/latest) · [使用说明](#启动) · [MIT 许可证](LICENSE)
+[全部发布文件](https://github.com/KishinamiHakuno0111/between-companion/releases/latest) · [图文上手教程](docs/QUICKSTART.md) · [使用说明](#启动) · [MIT 许可证](LICENSE)
 
 ![此间聊天界面（演示数据）](docs/chat-preview.jpg)
 
@@ -22,7 +22,7 @@ Windows 下载后双击；Android 下载后安装。**不用下载整个项目�
 
 ## 启动
 
-Windows 64 位独立版：双击 `此间-0.2.1.exe`，自动启动后端并打开浏览器，无需安装 Node.js。使用时保留后台窗口；关闭窗口或按 Ctrl+C 退出。升级前先关闭旧版后台，EXE 放在原目录即可沿用旁边的 `data`。本版修复聊天发送、回复完成和记忆更新时的列表闪烁；旧版正在运行时会提示先退出，避免打开旧界面。
+Windows 64 位独立版：双击下载好的 EXE，自动启动后端并打开浏览器，无需安装 Node.js。使用时保留后台窗口；关闭窗口或按 Ctrl+C 退出。升级前先关闭旧版后台，EXE 放在原目录即可沿用旁边的 `data`。本版修复聊天发送、回复完成和记忆更新时的列表闪烁；旧版正在运行时会提示先退出，避免打开旧界面。
 
 Android 手机独立版见 [Android 安装说明](android/README.md)，安装包位于 `dist/between-0.2.1-android.apk`。手机无需运行电脑服务，数据与桌面版独立。新版 APK 使用原签名，可直接覆盖安装保留记录，不要先卸载。
 
