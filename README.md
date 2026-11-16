@@ -2,13 +2,13 @@
 
 一个可以接入自己 API 的陪伴式聊天工具。设定角色、聊日常，让每个角色拥有独立的对话和记忆。支持 DeepSeek 官方与 OpenAI 兼容接口，提供 Windows 和 Android 独立版。
 
-**直接下载： [Windows 电脑版（EXE）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.1/Between-0.3.1-Windows-x64.exe) · [Android 安卓版（APK）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.1/between-0.3.1-android.apk)**
+**直接下载： [Windows 电脑版（EXE）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.2/Between-0.3.2-Windows-x64.exe) · [Android 安卓版（APK）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.2/between-0.3.2-android.apk)**
 
 Windows 下载后双击；Android 下载后安装。**不用下载整个项目，也不用安装编程环境。**
 
 [全部发布文件](https://github.com/KishinamiHakuno0111/between-companion/releases/latest) · [图文上手教程](docs/QUICKSTART.md) · [使用说明](#启动) · [MIT 许可证](LICENSE)
 
-**0.3.1 更新：** 横向波形录音、原位停止朗读、思考强度上拉菜单与分类设置，可隐藏思考过程、调整字号和发送快捷键。[查看功能与使用说明](docs/FEATURES.md)。
+**0.3.2 更新：** 新安装默认使用 DeepSeek 官方 API，并将其排在服务类型第一项；保留已有 API 配置。[查看功能与使用说明](docs/FEATURES.md)。
 
 ![此间聊天界面（演示数据）](docs/chat-preview.jpg)
 
@@ -26,7 +26,7 @@ Windows 下载后双击；Android 下载后安装。**不用下载整个项目�
 
 Windows 64 位独立版：双击下载好的 EXE，自动启动后端并打开浏览器，无需安装 Node.js。使用时保留后台窗口；关闭窗口或按 Ctrl+C 退出。升级前先关闭旧版后台，EXE 放在原目录即可沿用旁边的 `data`。本版修复聊天发送、回复完成和记忆更新时的列表闪烁；旧版正在运行时会提示先退出，避免打开旧界面。
 
-Android 手机独立版见 [Android 安装说明](android/README.md)，[点击下载 APK](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.1/between-0.3.1-android.apk)。手机无需运行电脑服务，数据与桌面版独立。新版 APK 使用原签名，可直接覆盖安装保留记录，不要先卸载。
+Android 手机独立版见 [Android 安装说明](android/README.md)，[点击下载 APK](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.2/between-0.3.2-android.apk)。手机无需运行电脑服务，数据与桌面版独立。新版 APK 使用原签名，可直接覆盖安装保留记录，不要先卸载。
 
 安装 Node.js 24 或更高版本，然后双击 `start.cmd` 或 `Start.bat`，服务就绪后会自动打开默认浏览器。也可在本目录执行：
 
@@ -118,6 +118,6 @@ npm test
 
 聊天渲染回归：PowerShell 中设置 `$env:QA_RENDER='1'`、`$env:QA_PORT='3215'` 后运行 `node test/preview-server.js`，在页面顶部点击「运行渲染回归测试」。测试使用临时数据库，验证历史节点和流式气泡复用、记忆通知、向上阅读不被拉到底部、底部跟随、停止与重试、角色切换。已在 1280px 桌面和 390px 手机窄屏通过；窄屏测试不代替 Android 真机键盘测试。
 
-Windows 构建：进入 `desktop` 后运行 `npm ci`，设置 `$env:BETWEEN_EXE_OUTPUT='../此间-0.3.1.exe'`，执行 `npm run build` 与 `npm test`。构建需要 Windows x64 Node.js 24，产物包含运行时、前端和 Node.js 许可证，不包含 `data` 或测试资源。
+Windows 构建：进入 `desktop` 后运行 `npm ci`，设置 `$env:BETWEEN_EXE_OUTPUT='../此间-0.3.2.exe'`，执行 `npm run build` 与 `npm test`。构建需要 Windows x64 Node.js 24，产物包含运行时、前端和 Node.js 许可证，不包含 `data` 或测试资源。
 
 主要文件：`server.js`（HTTP 与 CRUD/聊天）、`core.js`（数据库/上下文/记忆/摘要）、`provider.js`（协议与流式解码）、`public/`（界面）。

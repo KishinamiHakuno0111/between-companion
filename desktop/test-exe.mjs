@@ -46,7 +46,7 @@ try{
   const state=await call('/api/state');assert.equal(state.characters.length,0);assert.equal(state.settings.api.hasKey,false);
   const character=await call('/api/characters','POST',{name:'便携测试',persona:'自然地交流',avatar:''});
   await call(`/api/characters/${character.id}/memories`,'POST',{title:'偏好',content:'喜欢红茶',category:'喜好'});
-  await call('/api/settings','PUT',{api:{...state.settings.api,model:'local-test',baseUrl:`http://127.0.0.1:${upstream.address().port}/v1`,apiKey:'temporary-test-key',autoMemory:false}});
+  await call('/api/settings','PUT',{api:{...state.settings.api,provider:'openai',model:'local-test',baseUrl:`http://127.0.0.1:${upstream.address().port}/v1`,apiKey:'temporary-test-key',autoMemory:false}});
   const response=await fetch(url+`/api/characters/${character.id}/chat`,{method:'POST',headers:{'Content-Type':'application/json','X-Companion':'1'},body:JSON.stringify({content:'打包后也能聊天吗？'})});
   const events=(await response.text()).trim().split('\n').map(JSON.parse);assert.equal(events.at(-1).type,'done');assert.ok(events.some(e=>e.type==='reply'&&e.message.content.includes('独立程序')));
   const duplicate=launch();await Promise.race([once(duplicate,'exit'),new Promise((_,reject)=>{const timer=setTimeout(()=>reject(new Error('重复启动未退出')),10000);timer.unref();})]);

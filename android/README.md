@@ -1,11 +1,11 @@
 # 此间 Android 独立版
 
-安装包：[between-0.3.1-android.apk](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.1/between-0.3.1-android.apk)。支持 Android 10 及以上，需要较新的 Android System WebView / Chrome。Java 字节码应用，不限制 ARM64、ARM 或 x86 架构。
+安装包：[between-0.3.2-android.apk](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.2/between-0.3.2-android.apk)。支持 Android 10 及以上，需要较新的 Android System WebView / Chrome。Java 字节码应用，不限制 ARM64、ARM 或 x86 架构。
 
 ## 安装使用
 
 1. 将 APK 发到手机，在手机上打开并按系统提示安装。
-   已安装旧版时直接覆盖安装，保留应用数据，不要先卸载。本版为 0.3.1（versionCode 4），沿用原签名。
+   已安装旧版时直接覆盖安装，保留应用数据，不要先卸载。本版为 0.3.2（versionCode 5），沿用原签名。
 2. 打开「此间」，进入 API 设置，选择 DeepSeek 官方或 OpenAI 兼容接口。
 3. 填入自己的 Key，点击「连接」，选择模型并保存。DeepSeek 图片和文档使用 `deepseek-flash`。
 4. 创建角色即可聊天。无需启动电脑、Node.js 或局域网服务。

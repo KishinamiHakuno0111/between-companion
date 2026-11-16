@@ -18,11 +18,11 @@ async function sameInstance(port,storageId){
   try{const response=await fetch(`http://127.0.0.1:${port}/api/desktop-instance`,{signal:AbortSignal.timeout(1500),redirect:'error'});
     if(!response.ok)return false;const value=await response.json();
     if(value.app!=='between-desktop'||value.storageId!==storageId)return false;
-    return value.version==='0.3.1'?true:'outdated';
+    return value.version==='0.3.2'?true:'outdated';
   }catch{return false;}
 }
 async function main(){
-  if(args.includes('--version')){console.log('此间 Between 0.3.1 · Windows x64');return;}
+  if(args.includes('--version')){console.log('此间 Between 0.3.2 · Windows x64');return;}
   if(args.includes('--licenses')){console.log(getAsset('licenses/Node.txt','utf8'));return;}
   const data=resolve(option('--data-dir')||resolve(dirname(process.execPath),'data'));
   const firstPort=Number(option('--port')||process.env.PORT||3210);
@@ -36,7 +36,7 @@ async function main(){
   }
   await mkdir(data,{recursive:true});
   const store=createStore(resolve(data,'between.sqlite'));
-  const app=createApp({store,loadAsset:file=>Buffer.from(getAsset(`public/${file}`)),runtimeInfo:{app:'between-desktop',version:'0.3.1',storageId}});
+  const app=createApp({store,loadAsset:file=>Buffer.from(getAsset(`public/${file}`)),runtimeInfo:{app:'between-desktop',version:'0.3.2',storageId}});
   let selected;
   for(let port=firstPort;port<firstPort+32;port++){
     try{
@@ -54,7 +54,7 @@ async function main(){
   }
   if(!selected){store.db.close();throw new Error('没有可用的本地端口，请关闭旧实例后重试。');}
   const url=`http://127.0.0.1:${selected}`;
-  console.log(`此间 Between 0.3.1\n\n网页：${url}\n数据：${data}\n\n网页将自动打开。使用期间请保留此窗口；关闭窗口或按 Ctrl+C 退出。`);
+  console.log(`此间 Between 0.3.2\n\n网页：${url}\n数据：${data}\n\n网页将自动打开。使用期间请保留此窗口；关闭窗口或按 Ctrl+C 退出。`);
   openBrowser(url);
   let closing=false;
   const stop=()=>{if(closing)return;closing=true;app.close();app.server.closeAllConnections();store.db.close();process.exit(0);};
