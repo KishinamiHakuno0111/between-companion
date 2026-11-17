@@ -1,11 +1,11 @@
 # 此间 Android 独立版
 
-安装包：[between-0.3.3-android.apk](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.3/between-0.3.3-android.apk)。支持 Android 10 及以上，需要较新的 Android System WebView / Chrome。Java 字节码应用，不限制 ARM64、ARM 或 x86 架构。
+[下载 0.4.1 APK](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.4.1/between-0.4.1-android.apk)。支持 Android 10 及以上，需要较新的 Android System WebView / Chrome。Java 字节码应用，不限制 ARM64、ARM 或 x86 架构。
 
 ## 安装使用
 
 1. 将 APK 发到手机，在手机上打开并按系统提示安装。
-   已安装旧版时直接覆盖安装，保留应用数据，不要先卸载。本版为 0.3.3（versionCode 6），沿用原签名。
+   已安装旧版时直接覆盖安装，保留应用数据，不要先卸载。本版为 0.4.1（versionCode 8），沿用原签名。
 2. 打开「此间」，进入 API 设置，选择 DeepSeek 官方或 OpenAI 兼容接口。
 3. 填入自己的 Key，点击「连接」，选择模型并保存。DeepSeek 图片和文档使用 `deepseek-flash`。
 4. 创建角色即可聊天。无需启动电脑、Node.js 或局域网服务。
@@ -17,6 +17,8 @@
 返回键优先关闭弹窗、详情，再返回会话列表；列表页返回会将应用放到后台。长时间切后台可能被系统终止，未完成的消息可以重新打开应用后重试。
 
 ## 实现
+
+0.4.1（versionCode 8）新增本地主动联系与系统通知。开启角色后，在设置中允许通知权限；`ProactiveJob` 通过系统单次后台任务启动受限的本地业务运行环境，复用 `NativeBridge` 的 SQLite 与网络桥。任务可跨进程重启和设备重启恢复，但受 Android 省电与后台调度限制。详情见 [主动联系说明](../docs/PROACTIVE.md)。
 
 - 界面与业务逻辑来自现有 `public/`、`server.js`、`core.js`、`provider.js` 和 `attachments.js`，由 esbuild 打包为本地资源。
 - `runtime/platform.js` 把现有数据库调用映射到 Android SQLite，把本地 API 调用直接交给应用内处理函数，不启动 HTTP 服务器。
@@ -47,7 +49,7 @@ cd ..
 npm test
 ```
 
-桌面 24 项测试通过。Android 运行适配层测试通过，覆盖 SQLite 桥、模型获取、角色隔离、附件读写、流式回复、当前时间、工具偏好和重新创建运行环境后的持久化。APK 已通过 Android `apksigner verify` 与包结构校验。输入框上方可设置联网搜索、深度思考、阅读链接与语音；详情见 [功能说明](../docs/FEATURES.md)。
+桌面 42 项测试通过。Android 运行适配层测试通过，覆盖 SQLite 桥、模型获取、角色隔离、附件读写、流式回复、当前时间、工具偏好和重新创建运行环境后的持久化。APK 已通过 Android `apksigner verify` 与包结构校验。输入框上方可设置联网搜索、深度思考、阅读链接与语音；详情见 [功能说明](../docs/FEATURES.md)。
 
 当前环境没有连接 Android 真机；尚未完成真机安装、系统文件选择器及不同输入法上的端到端验证。
 

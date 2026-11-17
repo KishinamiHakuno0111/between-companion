@@ -9,6 +9,8 @@ import { provider, completionUrl, listModels } from './provider.js';
 import { attachmentStore } from './attachments.js';
 import {currentEnvironment} from './capabilities.js';
 import {transcribe,synthesize,requireSpeech} from './audio.js';
+import {createProactive,validateProactive} from './proactive.js';
+import {windowsNotifier} from './desktop/notifications.js';
 
 const root=dirname(fileURLToPath(import.meta.url));
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
@@ -28,12 +30,17 @@ function connection(a,current) {
   return {provider:a.provider,baseUrl,apiKey:a.clearKey?'':a.apiKey?text(a.apiKey,1000):same?current.apiKey:''};
 }
 
-export function createApp({store=createStore(), allowTestHost=false, loadAsset=file=>readFile(resolve(root,'public',file)), runtimeInfo}={}) {
+export function createApp({store=createStore(), allowTestHost=false, loadAsset=file=>readFile(resolve(root,'public',file)), runtimeInfo,notify=()=>{},schedule=()=>{},makeProvider=provider}={}) {
   const files=attachmentStore(store.db);
   const busy=new Set();
   const controllers=new Set();
+  let proactiveTimer;
+  const proactive=createProactive({store,makeProvider,isBusy:id=>busy.has(id),onMessage:async(c,m,p,presence)=>{
+    if(p.notifications&&!(presence.characterId===c.id&&presence.visible&&Date.now()-presence.at<45000))await notify(c,m);
+  },onSchedule:()=>schedule(proactive.nextDelay())});
+  const startProactive=()=>{if(proactiveTimer)return;proactiveTimer=setInterval(()=>proactive.tick().catch(()=>{}),15000);proactiveTimer.unref?.();proactive.tick().catch(()=>{});};
   const json=(res,value,status=200)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(value));};
-  const snapshot=()=>{const settings=store.settings();return {settings:{...settings,api:{...settings.api,apiKey:undefined,hasKey:Boolean(settings.api.apiKey)}},characters:store.characters().map(c=>({...c,lastMessage:store.messages(c.id).filter(m=>m.role!=='notice').at(-1)?.content || '',memoryCount:store.memories(c.id).length}))};};
+  const snapshot=()=>{const settings=store.settings();return {settings:{...settings,proactive:proactive.config(),api:{...settings.api,apiKey:undefined,hasKey:Boolean(settings.api.apiKey)}},characters:store.characters().map(c=>({...c,lastMessage:store.messages(c.id).filter(m=>m.role!=='notice').at(-1)?.content || '',memoryCount:store.memories(c.id).length}))};};
   const server=http.createServer(async(req,res)=>{
     res.setHeader('Cache-Control','no-store');
     res.setHeader('X-Content-Type-Options','nosniff');
@@ -46,6 +53,21 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
       if(path.startsWith('/api/') && req.method!=='GET' && req.headers['x-companion']!=='1')throw fail('请求来源无效。',403);
       if(path==='/api/desktop-instance' && req.method==='GET' && runtimeInfo)return json(res,runtimeInfo);
       if(path==='/api/state' && req.method==='GET')return json(res,snapshot());
+      if(path==='/api/proactive/test-notification'&&req.method==='POST') {
+        const c=store.characters()[0];if(!c)throw fail('先创建一个角色，再测试通知。');await notify(c,{id:randomUUID(),content:'通知已开启，点这里进入聊天。'});return json(res,{ok:true});
+      }
+      if(path==='/api/proactive/settings'&&req.method==='PUT') {
+        const value=validateProactive(await readBody(req)),s=store.settings(),previous=proactive.config();s.proactive=value;store.saveSettings(s);
+        if(previous.idleMinHours!==value.idleMinHours||previous.idleMaxHours!==value.idleMaxHours)proactive.reconfigure();else schedule(proactive.nextDelay());return json(res,snapshot());
+      }
+      if(path==='/api/proactive/presence'&&req.method==='POST') {
+        const b=await readBody(req);proactive.touch({characterId:typeof b.characterId==='string'?b.characterId:'',visible:b.visible===true,typing:b.typing===true});return json(res,{ok:true});
+      }
+      if(path==='/api/proactive/updates'&&req.method==='GET') {
+        const after=Math.max(0,Number(url.searchParams.get('after'))||0);
+        const rows=store.db.prepare("SELECT seq,character_id,metadata FROM messages WHERE seq>? AND role='assistant' ORDER BY seq").all(after);
+        return json(res,{cursor:store.db.prepare('SELECT MAX(seq) AS seq FROM messages').get().seq||0,characters:[...new Set(rows.filter(r=>JSON.parse(r.metadata).proactive).map(r=>r.character_id))]});
+      }
       if(path==='/api/preferences' && req.method==='PUT') {
         const b=await readBody(req),s=store.settings();
         for(const k of ['webSearch','readUrl','thinking','showReasoning','autoMemory'])if(k in b){if(typeof b[k]!=='boolean')throw fail('开关格式错误。');s.api[k]=b[k];}
@@ -88,13 +110,15 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
       }
       if(path==='/api/characters' && req.method==='POST') {
         const body=await readBody(req);
-        const c={id:randomUUID(),name:text(body.name,40,true),tagline:text(body.tagline || '',100),persona:text(body.persona,5000,true),greeting:text(body.greeting || '',1500),avatar:avatar(body.avatar || ''),color:['sage','rose','blue','plum'].includes(body.color)?body.color:'plum',playerOverride:null};
+        const c={id:randomUUID(),name:text(body.name,40,true),tagline:text(body.tagline || '',100),persona:text(body.persona,5000,true),greeting:text(body.greeting || '',1500),avatar:avatar(body.avatar || ''),color:['sage','rose','blue','plum'].includes(body.color)?body.color:'plum',playerOverride:null,proactiveEnabled:body.proactiveEnabled===true};
         store.saveCharacter(c);if(c.greeting)store.addMessage(c.id,'assistant',c.greeting,{greeting:true});return json(res,c,201);
       }
-      const match=path.match(/^\/api\/characters\/([^/]+)(?:\/(messages|memories|chat|context|attachments|speech)(?:\/([^/]+))?)?$/);
+      const match=path.match(/^\/api\/characters\/([^/]+)(?:\/(messages|memories|chat|context|attachments|speech|proactive)(?:\/([^/]+))?)?$/);
       if(match) {
         const [,id,resource,item]=match, c=store.character(id);
         if(!c)throw fail('角色不存在。',404);
+        if(resource==='proactive'&&req.method==='GET')return json(res,{events:proactive.events(id),error:proactive.state(id).lastError||''});
+        if(resource==='proactive'&&req.method==='DELETE'&&item){proactive.cancelEvent(id,item);return json(res,{ok:true});}
         if(resource==='speech'&&req.method==='POST'&&item) {
           const m=store.messages(id).find(m=>m.id===item&&m.role==='assistant');if(!m)throw fail('回复不存在。',404);
           const b=await readBody(req),controller=new AbortController();controllers.add(controller);res.on('close',()=>{if(!res.writableEnded)controller.abort();});
@@ -117,9 +141,10 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
           for(const [key,max] of Object.entries({name:40,tagline:100,persona:5000,greeting:1500}))if(key in b)updated[key]=text(b[key],max,['name','persona'].includes(key));
           if('avatar' in b)updated.avatar=avatar(b.avatar);
           if('playerOverride' in b)updated.playerOverride=b.playerOverride===null?null:player(b.playerOverride);
-          store.saveCharacter(updated);return json(res,updated);
+          if('proactiveEnabled' in b){if(typeof b.proactiveEnabled!=='boolean')throw fail('主动联系开关格式错误。');updated.proactiveEnabled=b.proactiveEnabled;}
+          store.saveCharacter(updated);if(c.proactiveEnabled&&!updated.proactiveEnabled)proactive.reset(id);schedule(proactive.nextDelay());return json(res,updated);
         }
-        if(!resource && req.method==='DELETE'){store.db.prepare('DELETE FROM characters WHERE id=?').run(id);return json(res,{ok:true});}
+        if(!resource && req.method==='DELETE'){proactive.cancel(id);store.db.prepare('DELETE FROM characters WHERE id=?').run(id);schedule(proactive.nextDelay());return json(res,{ok:true});}
         if(resource==='messages' && req.method==='GET')return json(res,store.messages(id));
         if(resource==='messages' && item && req.method==='DELETE'){
           const last=store.messages(id).filter(m=>m.role!=='notice').at(-1);
@@ -150,6 +175,7 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
           // Acquire after reading request body as parallel submissions can finish at different times.
           if(busy.has(id))throw fail('这个角色正在回复，请稍后再试。',409);
           busy.add(id);
+          proactive.userArrived(id);
           const controller=new AbortController();controllers.add(controller);
           res.on('close',()=>{if(!res.writableEnded)controller.abort();});
           let userMessage;
@@ -175,6 +201,10 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
             const result=await p.stream(context.messages,text=>emit('delta',{text}),event=>emit(event.type,event));
             const assistant=store.addMessage(id,'assistant',result.content,{finishReason:result.finishReason,...result.metadata});
             emit('reply',{message:assistant});
+            if(c.proactiveEnabled&&!controller.signal.aborted){
+              emit('status',{message:'正在整理联系计划…'});
+              await proactive.plan(c,userMessage,assistant,controller.signal);
+            }
             if(result.finishReason==='length')emit('warning',{message:'本条回复已达到输出上限。手动设置过回复长度时，可在 API 设置中调高或留空使用自动设置。'});
             if(settings.api.autoMemory && userMessage.content.trim() && !controller.signal.aborted) {
               emit('status',{message:'正在整理值得记住的小事…'});
@@ -195,24 +225,25 @@ export function createApp({store=createStore(), allowTestHost=false, loadAsset=f
           } catch(error) {
             if(res.headersSent) {if(!res.destroyed)res.end(JSON.stringify({type:'error',message:controller.signal.aborted?'已停止生成，消息已保留，可重试。':error.message})+'\n');}
             else throw error;
-          } finally {busy.delete(id);controllers.delete(controller);}
+          } finally {busy.delete(id);controllers.delete(controller);proactive.userFinished(id);}
           return;
         }
       }
       if(path.startsWith('/api/'))throw fail('接口不存在。',404);
       if(req.method!=='GET')throw fail('不支持此请求。',405);
-      const staticFiles={'/':'index.html','/app.js':'app.js','/chat-features.js':'chat-features.js','/style.css':'style.css','/avatars.svg':'avatars.svg'};
+      const staticFiles={'/':'index.html','/app.js':'app.js','/chat-features.js':'chat-features.js','/proactive-ui.js':'proactive-ui.js','/style.css':'style.css','/avatars.svg':'avatars.svg'};
       const file=staticFiles[path];if(!file)throw fail('页面不存在。',404);
       const bytes=await loadAsset(file);
       res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml'}[extname(file)]});res.end(bytes);
     }catch(error){if(!res.headersSent)json(res,{error:error.message || '操作失败，请重试。'},error.status || 400);else res.end();}
   });
-  return {server,store,close:()=>{for(const c of controllers)c.abort();server.close();}};
+  return {server,store,proactive,startProactive,close:()=>{clearInterval(proactiveTimer);proactive.stop();for(const c of controllers)c.abort();server.close();}};
 }
 
 async function startLocal() {
   const data=resolve(root,'data');await mkdir(data,{recursive:true});
-  const app=createApp({store:createStore(resolve(data,'between.sqlite'))});
+  const app=createApp({store:createStore(resolve(data,'between.sqlite')),notify:windowsNotifier(()=>`http://127.0.0.1:${app.server.address().port}`)});
+  app.startProactive();
   const port=Number(process.env.PORT || 3210);
   app.server.listen(port,'127.0.0.1',()=>{
     const url=`http://127.0.0.1:${app.server.address().port}`;

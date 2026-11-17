@@ -28,8 +28,9 @@ public class MainActivity extends Activity {
     private WebView web;
     private SQLiteDatabase database;
     private final ExecutorService workers=Executors.newFixedThreadPool(4);
-    private final ConcurrentHashMap<String,HttpURLConnection> connections=new ConcurrentHashMap<>();
-    private final Set<String> cancelled=ConcurrentHashMap.newKeySet();
+    private Bridge bridge;
+    private boolean pageReady;
+    private String pendingCharacter;
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest microphoneRequest;
     private String downloadCharacter,downloadId;
@@ -58,7 +59,8 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);settings.setAllowContentAccess(true);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSupportMultipleWindows(false);settings.setJavaScriptCanOpenWindowsAutomatically(false);
-        web.addJavascriptInterface(new Bridge(),"BetweenNative");
+        bridge=new Bridge();web.addJavascriptInterface(bridge,"BetweenNative");
+        pendingCharacter=getIntent().getStringExtra("characterId");
         web.setWebViewClient(new WebViewClient(){
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){return resource(request.getUrl());}
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
@@ -116,6 +118,8 @@ public class MainActivity extends Activity {
             return new WebResourceResponse(name.endsWith(".js")?"text/javascript":name.endsWith(".css")?"text/css":"text/html","UTF-8",200,"OK",headers,getAssets().open(name));
         }catch(Exception error){return blocked();}
     }
+    private void openPendingCharacter(){if(pageReady&&pendingCharacter!=null){String id=pendingCharacter;pendingCharacter=null;js("window.__betweenOpenCharacter("+JSONObject.quote(id)+")");}}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);pendingCharacter=intent.getStringExtra("characterId");openPendingCharacter();}
     @Override public void onBackPressed(){js("window.__betweenBack ? window.__betweenBack() : BetweenNative.minimize()");}
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){
         super.onRequestPermissionsResult(request,permissions,results);
@@ -123,7 +127,7 @@ public class MainActivity extends Activity {
             if(results.length>0&&results[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)pending.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});else pending.deny();}
     }
     @Override protected void onDestroy(){
-        for(HttpURLConnection c:connections.values())c.disconnect();workers.shutdownNow();
+        if(bridge!=null)bridge.close();workers.shutdownNow();
         if(fileCallback!=null)fileCallback.onReceiveValue(null);
         if(microphoneRequest!=null){microphoneRequest.deny();microphoneRequest=null;}
         if(web!=null){web.removeJavascriptInterface("BetweenNative");web.destroy();web=null;}
@@ -163,8 +167,11 @@ public class MainActivity extends Activity {
         if(input==null)throw new IOException();ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[16384];int n;
         while((n=input.read(b))!=-1){if(out.size()+n>limit)throw new IOException("File too large");out.write(b,0,n);}return out.toByteArray();
     }
-    private void networkEvent(String id,JSONObject event){if(cancelled.contains(id))return;js("window.__betweenNetwork("+JSONObject.quote(id)+","+event.toString()+")");}
-    public class Bridge {
+    public class Bridge extends NativeBridge {
+        public Bridge(){super(MainActivity.this,MainActivity.this.database,MainActivity.this::js);}
+        @JavascriptInterface public void ready(){runOnUiThread(()->{pageReady=true;openPendingCharacter();});}
+        @JavascriptInterface public void requestNotifications(){runOnUiThread(()->{if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},22);else startActivity(new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName()));});}
+        @JavascriptInterface public boolean notificationsAllowed(){return getSystemService(android.app.NotificationManager.class).areNotificationsEnabled();}
         @JavascriptInterface public void minimize(){runOnUiThread(()->moveTaskToBack(true));}
         @JavascriptInterface public String sha256(String value){try{byte[] bytes=MessageDigest.getInstance("SHA-256").digest(utf8(value));StringBuilder out=new StringBuilder();for(byte b:bytes)out.append(String.format("%02x",b&255));return out.toString();}catch(Exception error){throw new IllegalStateException(error);}}
         @JavascriptInterface public void pasteImage(){runOnUiThread(()->{
@@ -172,69 +179,5 @@ public class MainActivity extends Activity {
             if(clip!=null){for(int i=0;i<clip.getItemCount();i++){Uri uri=clip.getItemAt(i).getUri();if(uri!=null&&"content".equals(uri.getScheme())){pasteUri(uri,()->{});return;}}}
             toast("剪贴板没有可读取的图片，可使用附件按钮选择。");
         });}
-        @JavascriptInterface public synchronized String sql(String mode,String sql,String args){
-            try{
-                JSONArray params=new JSONArray(args);
-                if(mode.equals("exec")){
-                    for(String statement:sql.split(";")){statement=statement.trim();if(statement.isEmpty())continue;
-                        if(statement.equalsIgnoreCase("BEGIN"))database.beginTransaction();
-                        else if(statement.equalsIgnoreCase("COMMIT")){database.setTransactionSuccessful();database.endTransaction();}
-                        else if(statement.equalsIgnoreCase("ROLLBACK"))database.endTransaction();
-                        else if(statement.toUpperCase(Locale.ROOT).startsWith("PRAGMA")){try(Cursor c=database.rawQuery(statement,null)){c.moveToFirst();}}
-                        else database.execSQL(statement);
-                    }return "{}";
-                }
-                if(mode.equals("all")){
-                    String[] bindings=new String[params.length()];for(int i=0;i<bindings.length;i++)bindings[i]=params.isNull(i)?null:params.get(i).toString();
-                    JSONArray rows=new JSONArray();try(Cursor c=query(sql,bindings)){
-                        while(c.moveToNext()){JSONObject row=new JSONObject();for(int i=0;i<c.getColumnCount();i++){
-                            Object value;switch(c.getType(i)){
-                                case Cursor.FIELD_TYPE_NULL:value=JSONObject.NULL;break;
-                                case Cursor.FIELD_TYPE_INTEGER:value=c.getLong(i);break;
-                                case Cursor.FIELD_TYPE_FLOAT:value=c.getDouble(i);break;
-                                case Cursor.FIELD_TYPE_BLOB:value=new JSONObject().put("__blob",Base64.encodeToString(c.getBlob(i),Base64.NO_WRAP));break;
-                                default:value=c.getString(i);
-                            }row.put(c.getColumnName(i),value);
-                        }rows.put(row);}
-                    }return rows.toString();
-                }
-                if(!mode.equals("run"))throw new IllegalArgumentException();
-                try(SQLiteStatement statement=database.compileStatement(sql)){
-                    for(int i=0;i<params.length();i++){Object value=params.get(i);int n=i+1;
-                        if(value==JSONObject.NULL)statement.bindNull(n);
-                        else if(value instanceof JSONObject&&((JSONObject)value).has("__blob"))statement.bindBlob(n,Base64.decode(((JSONObject)value).getString("__blob"),Base64.DEFAULT));
-                        else if(value instanceof Number)statement.bindLong(n,((Number)value).longValue());
-                        else if(value instanceof Boolean)statement.bindLong(n,((Boolean)value)?1:0);
-                        else statement.bindString(n,value.toString());
-                    }
-                    statement.execute();
-                }
-                try(Cursor c=database.rawQuery("SELECT last_insert_rowid() AS id, changes() AS count",null)){c.moveToFirst();return new JSONObject().put("lastInsertRowid",c.getLong(0)).put("changes",c.getLong(1)).toString();}
-            }catch(Exception error){try{return new JSONObject().put("error","本地数据库操作失败："+error.getClass().getSimpleName()).toString();}catch(Exception impossible){return "{\"error\":\"数据库错误\"}";}}
-        }
-        @JavascriptInterface public void cancel(String id){cancelled.add(id);HttpURLConnection connection=connections.remove(id);if(connection!=null)workers.execute(connection::disconnect);}
-        @JavascriptInterface public void request(String id,String input){
-            workers.execute(()->{
-                HttpURLConnection connection=null;
-                try{
-                    JSONObject options=new JSONObject(input);URL url=new URL(options.getString("url"));
-                    if(!Arrays.asList("https","http").contains(url.getProtocol())||url.getUserInfo()!=null)throw new IOException("Invalid URL");
-                    if(cancelled.contains(id))return;
-                    connection=(HttpURLConnection)url.openConnection();connections.put(id,connection);connection.setInstanceFollowRedirects(false);
-                    connection.setConnectTimeout(30000);connection.setReadTimeout(600000);connection.setRequestMethod(options.optString("method","GET"));
-                    connection.setRequestProperty("Accept-Encoding","identity");
-                    JSONObject headers=options.getJSONObject("headers");Iterator<String> names=headers.keys();while(names.hasNext()){String name=names.next();if(!name.equalsIgnoreCase("host")&&!name.equalsIgnoreCase("content-length"))connection.setRequestProperty(name,headers.getString(name));}
-                    String body=options.optString("body","");if(!body.isEmpty()){byte[] bytes=Base64.decode(body,Base64.DEFAULT);connection.setDoOutput(true);connection.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=connection.getOutputStream()){out.write(bytes);}}
-                    if(cancelled.contains(id))return;
-                    int status=connection.getResponseCode();JSONObject responseHeaders=new JSONObject();
-                    for(Map.Entry<String,List<String>> h:connection.getHeaderFields().entrySet())if(h.getKey()!=null)responseHeaders.put(h.getKey(),String.join(", ",h.getValue()));
-                    networkEvent(id,new JSONObject().put("type","headers").put("status",status).put("headers",responseHeaders));
-                    InputStream stream=status>=400?connection.getErrorStream():connection.getInputStream();
-                    if(stream!=null)try(InputStream in=stream){byte[] buffer=new byte[16384];int count;while(!cancelled.contains(id)&&(count=in.read(buffer))!=-1){networkEvent(id,new JSONObject().put("type","data").put("data",Base64.encodeToString(buffer,0,count,Base64.NO_WRAP)));}}
-                    networkEvent(id,new JSONObject().put("type","end"));
-                }catch(Exception error){try{networkEvent(id,new JSONObject().put("type","error").put("message","网络请求失败，请检查网络、API 地址或证书。"));}catch(Exception ignored){}}
-                finally{connections.remove(id);if(connection!=null)connection.disconnect();cancelled.remove(id);}
-            });
-        }
     }
 }

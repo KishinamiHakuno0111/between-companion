@@ -1,4 +1,5 @@
 import {hasWebTools, responseSources} from './capabilities.js';
+import {structuredError} from './structured.js';
 export function completionUrl(baseUrl) {
   const url=new URL(baseUrl);
   if (!['https:','http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写不含账号、查询参数的 HTTP(S) API 地址。');
@@ -46,7 +47,7 @@ export async function listModels(api) {
 }
 
 export function provider(api, signal) {
-  async function request(messages, {stream=false,maxTokens=api.outputTokens}={}) {
+  async function request(messages, {stream=false,maxTokens=api.outputTokens,json=false,formatFallback=false}={}) {
     if(!api.apiKey || !api.model) throw new Error('请先在 API 设置中填写密钥和模型名称。');
     const model=api.models?.find(m=>m.id===api.model);
     if(maxTokens == null && api.provider==='deepseek')maxTokens=model?.maxOutputTokens || 393216;
@@ -56,6 +57,7 @@ export function provider(api, signal) {
       return {...m,content,...(stream&&api.provider==='deepseek'&&m.role==='assistant'?{reasoning_content:compatible?_provider.reasoning_content||'':''}:{}),...(compatible&&_provider.server_tool_calls?.length?{server_tool_calls:_provider.server_tool_calls}:{})};
     });
     const payload={model:api.model,messages:wire,stream};
+    if(json)payload.response_format={type:'json_object'};
     if(maxTokens != null)payload.max_tokens=maxTokens;
     // Background extraction/summary tasks should not consume their small budget on hidden reasoning.
     if(api.provider==='deepseek' && !stream)payload.thinking={type:'disabled'};
@@ -77,7 +79,11 @@ export function provider(api, signal) {
       body:encoded,
     });
     if(!response.ok) {
-      await response.body?.cancel();
+      if(json&&!formatFallback&&[400,422].includes(response.status)) {
+        // Some OpenAI-compatible services explicitly reject this optional parameter.
+        const detail=(await response.text()).slice(0,16000);
+        if(/response_format|json_object/i.test(detail)&&/unsupported|not support|not permitted|unrecognized|unknown|不支持/i.test(detail))return request(messages,{stream,maxTokens,json:false,formatFallback:true});
+      }else await response.body?.cancel();
       const hints={401:'密钥无效或已过期',403:'没有访问该模型的权限',404:'API 地址、模型名称或远端附件不正确',429:'请求过于频繁或额度不足',400:'请检查模型是否支持附件及当前上下文上限；文档解析后的实际长度可能超过估算，请拆分大文档'};
       throw new Error(`模型服务返回 ${response.status}：${hints[response.status] || '服务暂时不可用，请稍后重试'}。`);
     }
@@ -88,6 +94,7 @@ export function provider(api, signal) {
       const response=await request(messages,options);
       const body=await response.json();
       const content=body.choices?.[0]?.message?.content;
+      if(options.json&&(body.choices?.[0]?.finish_reason==='length'||typeof content!=='string'||!content.trim()))throw structuredError();
       if(typeof content!=='string' || !content.trim()) throw new Error('模型没有返回正文，请检查模型是否支持文本 Chat Completions。');
       return content;
     },

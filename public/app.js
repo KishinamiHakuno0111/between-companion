@@ -1,4 +1,5 @@
 import {citedText,replyExtras,speechControl,startRecording} from './chat-features.js';
+import {proactivePanel,readProactiveForm,validateProactiveForm,bindProactiveSettings,characterProactive,characterPlans,startProactiveUI} from './proactive-ui.js';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={attach:'M21 11l-8.5 8.5a6 6 0 0 1-8.5-8.5L13 2a4 4 0 0 1 5.7 5.7L10 16.4a2 2 0 0 1-2.8-2.8L15 5.8',chat:'M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z',book:'M12 7v14M3 3h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5v16h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3z',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M9 3l-1 2-3 1-2 4 1 2-1 2 2 4 3 1 1 2h6l1-2 3-1 2-4-1-2 1-2-2-4-3-1-1-2z',plus:'M12 5v14M5 12h14',search:'M21 21l-4.5-4.5M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15',chevron:'M9 5l7 7-7 7',back:'M15 5l-7 7 7 7',edit:'M12 20H4V12M16 3l5 5-10 10-6 1 1-6zM14 5l5 5',panel:'M3 4h18v16H3zM15 4v16',close:'M6 6l12 12M6 18L18 6',user:'M20 21v-2a7 7 0 0 0-14 0v2M13 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8',arrow:'M12 19V5M5 12l7-7 7 7',lock:'M5 10h14v11H5zM8 10V6a4 4 0 0 1 8 0v4',spark:'M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z',leaf:'M20 4C11 2 3 9 7 15s14 3 13-11zM4 21l10-11',heart:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z',trash:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',check:'M5 12l4 4L19 6',stop:'M6 6h12v12H6z',plug:'M8 3v5M16 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7v5l3 2'};
@@ -233,6 +234,9 @@ function decorateSettings(){
   // Moving the API panel preserves its input listeners and any unsaved values between tabs.
   $('#connectApi').addEventListener('click',()=>apiDirty=true);
   const sendKeyHint=()=>$('#sendKeyHint').textContent=$('[name="sendKey"]').value==='modifier'?'Enter 换行。':'Shift + Enter 换行。';$('[name="sendKey"]').onchange=sendKeyHint;sendKeyHint();
+  $('.settings-nav').insertAdjacentHTML('beforeend',`<button type="button" id="settings-tab-proactive" role="tab" aria-controls="settings-proactive" aria-selected="false" tabindex="-1" data-settings-tab="proactive">${icon('clock')}<span>主动联系</span></button>`);
+  $('.settings-panels').insertAdjacentHTML('beforeend',proactivePanel(state.settings.proactive,state.characters));
+  bindProactiveSettings(api,toast);
   function selectTab(id,focus=false){
     for(const button of content.querySelectorAll('[data-settings-tab]')){const selected=button.dataset.settingsTab===id;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;if(selected&&focus)button.focus();}
     for(const panel of content.querySelectorAll('.settings-panel'))panel.hidden=panel.id!==`settings-${id}`;
@@ -241,10 +245,13 @@ function decorateSettings(){
   $('.settings-nav').onclick=e=>{const button=e.target.closest('[data-settings-tab]');if(button&&!modalBusy)selectTab(button.dataset.settingsTab);};
   $('.settings-nav').onkeydown=e=>{const tabs=[...content.querySelectorAll('[data-settings-tab]')],current=tabs.indexOf(document.activeElement);if(current<0||modalBusy)return;const keys=['ArrowDown','ArrowRight','ArrowUp','ArrowLeft','Home','End'];if(!keys.includes(e.key))return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(current+(e.key==='ArrowDown'||e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next].dataset.settingsTab,true);};
   saveHandler=async f=>{
+    validateProactiveForm(selectTab);
     if(apiDirty){selectTab('api');if(!$('#modalForm').reportValidity())throw new Error('请完成 API 配置后保存。');await apiSave(f);}
     if(apiDirty||f.get('voice')!==a.voice)stopSpeech();
     state=await api('/api/preferences',{method:'PUT',body:{readUrl:f.has('readUrl'),autoMemory:f.has('autoMemory'),showReasoning:f.has('showReasoning'),voice:f.get('voice'),messageSize:f.get('messageSize'),sendKey:f.get('sendKey')}});
-    renderSidebar();toast('设置已保存');
+    state=await api('/api/proactive/settings',{method:'PUT',body:readProactiveForm(f)});
+    for(const c of state.characters){const enabled=f.has(`proactive-character-${c.id}`);if(enabled!==Boolean(c.proactiveEnabled))await api(`/api/characters/${encodeURIComponent(c.id)}`,{method:'PUT',body:{proactiveEnabled:enabled}});}
+    await refresh();toast('设置已保存');
   };
   $('#settings-tab-api').focus();
 }
@@ -272,10 +279,12 @@ function characterModal(edit=false){
   const c=edit?active():{name:'',tagline:'',persona:'',greeting:'',avatar:''};if(!c)return;
   let getAvatar=()=>c.avatar;
   openModal(edit?'编辑角色':'创建角色',`${avatarPicker()}<div class="field-row">${field('名字','name',c.name,{required:true,max:40})}${field('一句话介绍','tagline',c.tagline,{max:100,placeholder:'可选'})}</div>${field('TA 的人设','persona',c.persona,{type:'textarea',required:true,max:5000,placeholder:'性格、背景、说话方式，以及你们的关系…',help:'每轮对话都会使用这份人设。每个角色只有一段独立聊天。'})}${field('初见时的开场白','greeting',c.greeting,{type:'textarea',max:1500,help:edit?'修改后不会替换已经发送的开场白。':'创建角色后显示在聊天中。可留空。'})}`,async f=>{
-    const body={...Object.fromEntries(f),avatar:getAvatar()};
+    const body={...Object.fromEntries(f),avatar:getAvatar(),proactiveEnabled:f.has('proactiveEnabled')};
     const result=await api(edit?`/api/characters/${c.id}`:'/api/characters',{method:edit?'PUT':'POST',body});await refresh();await selectCharacter(result.id);$('#app').classList.add('mobile-chat');toast(edit?'角色设定已更新':'角色已创建');
   },{label:edit?'保存设定':'创建角色',extra:edit?'<button type="button" class="button danger" id="deleteCharacter">删除角色</button>':''});
   getAvatar=bindAvatar(c.avatar);
+  $('#modalContent').insertAdjacentHTML('beforeend',characterProactive(c.proactiveEnabled)+(edit?'<section id="characterPlans" class="proactive-group"></section>':''));
+  if(edit)characterPlans(c.id,api);
   if(edit)$('#deleteCharacter').onclick=()=>{closeModal();confirmModal('删除角色？',`「${c.name}」的人设、全部聊天、记忆和摘要都会永久删除。`,async()=>{await api(`/api/characters/${c.id}`,{method:'DELETE'});await refresh();if(state.characters.length)await selectCharacter(state.characters[0].id);else renderEmpty();toast('角色已删除');});};
 }
 function playerModal(local=false){
@@ -489,4 +498,5 @@ async function readReply(messageId,createPlayer=url=>new Audio(url)){
 }
 async function boot(){try{await refresh();const saved=localStorage.getItem('between.active');const id=state.characters.some(c=>c.id===saved)?saved:state.characters[0]?.id;if(id)await selectCharacter(id);else renderEmpty();}catch(e){showAlert(`无法连接本地服务：${e.message}`);}}
 initTools();
-boot();
+await boot();
+startProactiveUI({api,getState:()=>state,getActive:()=>activeId,isSending:()=>sending||recordingBusy||modalBusy,refresh,selectCharacter,updateMessages:value=>{messages=value;renderMessages();}});

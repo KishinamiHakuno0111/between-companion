@@ -22,6 +22,23 @@ async function fixture(t){
   return {store,request,received,base};
 }
 
+test('主动联系设置验证、角色独立开关、计划取消隔离和增量消息游标',async t=>{
+  const {store,request}=await fixture(t);
+  assert.equal((await request('/api/proactive/settings','PUT',{idleMinHours:12,idleMaxHours:6})).status,400);
+  let response=await request('/api/proactive/settings','PUT',{idleMinHours:4,idleMaxHours:8,quietStart:'23:00',quietEnd:'07:00'});assert.equal(response.status,200);
+  assert.equal(store.settings().proactive.idleMinHours,4);assert.ok(!JSON.stringify(await response.json()).includes('test-key-never-return'));
+  assert.equal((await request('/api/characters/lin','PUT',{proactiveEnabled:'yes'})).status,400);
+  await request('/api/characters/lin','PUT',{proactiveEnabled:true});assert.equal(store.character('lin').proactiveEnabled,true);assert.ok(!store.character('xia').proactiveEnabled);
+  store.db.prepare('INSERT INTO proactive_events VALUES(?,?,?,?,?,?,?,?,?)').run('event-one','lin','exam','考试',Date.now()+1000,Date.now()+100000,'考试',1,'pending');
+  await request('/api/characters/xia/proactive/event-one','DELETE');assert.equal((await(await request('/api/characters/lin/proactive')).json()).events.length,1);
+  await request('/api/characters/lin/proactive/event-one','DELETE');assert.equal((await(await request('/api/characters/lin/proactive')).json()).events.length,0);
+  const start=(await(await request('/api/proactive/updates')).json()).cursor;
+  store.addMessage('lin','assistant','主动消息',{proactive:'idle'});
+  const delta=await(await request('/api/proactive/updates?after='+start)).json();assert.deepEqual(delta.characters,['lin']);assert.ok(delta.cursor>start);
+  assert.deepEqual((await(await request('/api/proactive/updates?after='+delta.cursor)).json()).characters,[]);
+  await request('/api/characters/lin','PUT',{proactiveEnabled:false});assert.equal(store.character('lin').proactiveEnabled,false);
+});
+
 test('完整聊天流、自动记忆提示、角色隔离、密钥不回传',async t=>{
   const {store,request,received}=await fixture(t);
   const response=await request('/api/characters/lin/chat','POST',{content:'我的生日是9月12日'});assert.equal(response.status,200);

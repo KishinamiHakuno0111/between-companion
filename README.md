@@ -2,7 +2,9 @@
 
 一个可以接入自己 API 的陪伴式聊天工具。设定角色、聊日常，让每个角色拥有独立的对话和记忆。支持 DeepSeek 官方与 OpenAI 兼容接口，提供 Windows 和 Android 独立版。
 
-**直接下载： [Windows 电脑版（EXE）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.3/Between-0.3.3-Windows-x64.exe) · [Android 安卓版（APK）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.3/between-0.3.3-android.apk)**
+**0.4.1 更新：** 新增按角色开启的主动联系，支持安排临近、久未聊天问候、停顿接话及系统通知；修复主动消息因 JSON 格式错误未能发出的问题。[使用说明](docs/PROACTIVE.md)。
+
+**直接下载： [Windows 电脑版（EXE）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.4.1/Between-0.4.1-Windows-x64.exe) · [Android 安卓版（APK）](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.4.1/between-0.4.1-android.apk)**
 
 Windows 下载后双击；Android 下载后安装。**不用下载整个项目，也不用安装编程环境。**
 
@@ -26,7 +28,7 @@ Windows 下载后双击；Android 下载后安装。**不用下载整个项目�
 
 Windows 64 位独立版：双击下载好的 EXE，自动启动后端并打开浏览器，无需安装 Node.js。使用时保留后台窗口；关闭窗口或按 Ctrl+C 退出。升级前先关闭旧版后台，EXE 放在原目录即可沿用旁边的 `data`。本版修复聊天发送、回复完成和记忆更新时的列表闪烁；旧版正在运行时会提示先退出，避免打开旧界面。
 
-Android 手机独立版见 [Android 安装说明](android/README.md)，[点击下载 APK](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.3.3/between-0.3.3-android.apk)。手机无需运行电脑服务，数据与桌面版独立。新版 APK 使用原签名，可直接覆盖安装保留记录，不要先卸载。
+Android 手机独立版见 [Android 安装说明](android/README.md)，[点击下载 APK](https://github.com/KishinamiHakuno0111/between-companion/releases/download/v0.4.1/between-0.4.1-android.apk)。手机无需运行电脑服务，数据与桌面版独立。新版 APK 使用原签名，可直接覆盖安装保留记录，不要先卸载。
 
 安装 Node.js 24 或更高版本，然后双击 `start.cmd` 或 `Start.bat`，服务就绪后会自动打开默认浏览器。也可在本目录执行：
 
